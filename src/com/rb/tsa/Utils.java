@@ -4,14 +4,23 @@ import org.apache.commons.io.FilenameUtils;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Queue;
+import java.util.*;
 
 //class containing utility methods
 public class Utils
 {
+    public static int defaultPaddingLength(Collection<String> stringCollection)
+    {
+        int defaultPaddingLength = 0;
+        for(String var : stringCollection)
+        {
+            if(var.length() > defaultPaddingLength)
+                defaultPaddingLength = var.length();
+        } // for
+
+        return defaultPaddingLength;
+    } // defaultPaddingLength
+
     public static String padLeftSpaces(String inputString, int length) {
         if (inputString.length() >= length) {
             return inputString;
