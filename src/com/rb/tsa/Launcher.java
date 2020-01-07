@@ -61,8 +61,18 @@ public class Launcher
         allFilePaths.addAll(setCFilePaths);
 
 
-        //generateTimeSeriesData(varsToDiscard, consideredVars, allFilePaths);
-        generateTimeSeriesData2(varsToDiscard, consideredVars, allFilePaths);
+        //generateTimeSeriesData(varsToDiscard, consideredVars, allFilePaths, "");
+        //generateTimeSeriesData2(varsToDiscard, consideredVars, allFilePaths);
+
+        List<String> setAPreProFilePaths = Utils.listFilesFromLocalPath(setADir + File.separator + "prepro", false);
+        List<String> setBPreProFilePaths = Utils.listFilesFromLocalPath(setBDir + File.separator + "prepro", false);
+        List<String> setCPreProFilePaths = Utils.listFilesFromLocalPath(setCDir + File.separator + "prepro", false);
+        List<String> allPreProFilePaths = new ArrayList<>(setAPreProFilePaths);
+        allPreProFilePaths.addAll(setBPreProFilePaths);
+        allPreProFilePaths.addAll(setCPreProFilePaths);
+//
+//        for(String localFilePath : allPreProFilePaths)
+//            Utils.csv2Arff(localFilePath);
 
 
         //TODO join 6 variables together to obtain 33 variables
@@ -83,7 +93,8 @@ public class Launcher
     //ts1, var1Value, var2Value, var3Value, ....
     //ts2, var1Value, var2Value, var3Value, ....
     //...
-    public static void generateTimeSeriesData(HashSet<String> varsToDiscard, TreeSet<String> consideredVars, List<String> allFilePaths)
+    public static void generateTimeSeriesData(HashSet<String> varsToDiscard, TreeSet<String> consideredVars, List<String> allFilePaths,
+                                              String missingValuePlaceHolder)
     {
         //default padding length is the length of the variable with the longest name
         int defaultPaddingLength = Utils.defaultPaddingLength(consideredVars);
@@ -138,7 +149,7 @@ public class Launcher
                     if(lineValues == null) {
                         lineValues = new String[firstLineComponents.size()]; // with the size equal to number of vars + 1
                         for(int i = 0; i < firstLineComponents.size(); i++)
-                            lineValues[i] = Utils.padLeftSpaces("-", defaultPaddingLength); //firstLineComponents.get(i).length());
+                            lineValues[i] = Utils.padLeftSpaces(missingValuePlaceHolder, defaultPaddingLength); //firstLineComponents.get(i).length());
 
                         //add time stamp value first
                         //which will be in the index 0
@@ -198,6 +209,10 @@ public class Launcher
 
 
 
+    //helper method to construct time series data in the following structure:
+    //       ts1:   ts2:    ts3:
+    //var1 :  1     2       3
+    //var2:   1     2       3
     public static void generateTimeSeriesData2(HashSet<String> varsToDiscard, TreeSet<String> consideredVars, List<String> allFilePaths)
     {
         //default padding length is the length of the variable with the longest name

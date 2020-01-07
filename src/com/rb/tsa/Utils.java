@@ -1,6 +1,9 @@
 package com.rb.tsa;
 
 import org.apache.commons.io.FilenameUtils;
+import weka.core.Instances;
+import weka.core.converters.ArffSaver;
+import weka.core.converters.CSVLoader;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -18,7 +21,7 @@ public class Utils
                 defaultPaddingLength = var.length();
         } // for
 
-        return defaultPaddingLength;
+        return defaultPaddingLength + 1; // + 1 to make a space for the longest named variable
     } // defaultPaddingLength
 
     public static String padLeftSpaces(String inputString, int length) {
@@ -230,37 +233,140 @@ public class Utils
     } // inputStreamFromLocalFilePath
 
 
-
-    //will create a directory in the directory of the current file and creates a file inside that directory with the same name
-    public static void writeToLocalFileSystem(String filePath, String newDirName, String fileContentToWrite, String newFileExtension)
+    public static void writeToLocalFileSystem(String localFilePathString, String newDirName,
+                                              String writableContent, String newFileExtension)
     {
-        File file = new File(filePath);
-        String parentDir = file.getParentFile().getAbsolutePath();
-        //System.out.println(parentDir);
-        String newFileDirPath = parentDir + "\\" + newDirName + "\\";
-        File newFileDir = new File(newFileDirPath);
-        newFileDir.mkdir();
+        //to be closed in finally
+        PrintWriter printWriter = null;
 
-        String fileName = file.getName();
-        String currentFileExtension = FilenameUtils.getExtension(fileName);
-        String newFileName = fileName.replace(currentFileExtension, newFileExtension);
-
-        File newFile = new File(newFileDir.getAbsolutePath() + "\\" + newFileName);
-        System.out.println("Wrote file => " + newFile.getAbsolutePath());
-
-        PrintWriter pw = null;
         try {
-            newFile.createNewFile();
+            File localFile = new File(localFilePathString);
 
-            pw = new PrintWriter(newFile);
-            pw.print(fileContentToWrite);
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (pw != null)
-                pw.close();
-        }
+            //if the localFile is a directory, print message to standard error and return
+            if (localFile.isDirectory()) {
+                System.err.println("\n" + localFilePathString + " is a directory; not able to generate writable file path from it");
+            } // if
+            //there is a possibility given path does not exist which means does not refer to either file or directory
+            //so perform checks for each of them; which is equivalent to FileSystem.resolvePath() for HDFS
+            else if (localFile.isFile())
+            {
+                //get the parent directory of localFile
+                File localFileParentDir = localFile.getParentFile();
+
+                //make a new directory called <resultFileNameAppendix> in the parent directory; if that directory exists do not create it
+                //getAbsolutePath() returns path string without trailing directory separator
+                File resultingSubDir = new File(localFileParentDir.getAbsolutePath() + File.separator + newDirName);
+
+                //mkdir a directory if the resulting sub dir path does not exist
+                if (!resultingSubDir.exists())
+                    resultingSubDir.mkdir();
+
+
+                //change the file extension
+                String localFileName = localFile.getName();
+                String currentFileExtension = FilenameUtils.getExtension(localFileName);
+                String newLocalFileName = localFileName.replace(currentFileExtension, newFileExtension);
+
+
+                //now create a writable path from resultingSubDir and the given localFile
+                //getAbsolutePath() returns path string without trailing directory separator
+                String writableFilePathString = resultingSubDir.getAbsolutePath() + File.separator + newLocalFileName;
+
+                //create a file from writable path
+                File writableFile = new File(writableFilePathString);
+                writableFile.createNewFile();
+
+                //write with print writer
+                printWriter = new PrintWriter(writableFile);
+                printWriter.print(writableContent);
+
+                System.out.println("Wrote file => " + writableFile.getAbsolutePath());
+            } // else if
+            else
+                System.err.println("\n" + localFilePathString + " is neither a file nor a directory; please provide correct file path");
+
+        } // try
+        catch (Exception ex) {
+            ex.printStackTrace();
+        } // catch
+        finally {
+            if (printWriter != null) printWriter.close();
+        } // finally
 
     } // writeToLocalFileSystem
+
+
+    public static void csv2Arff(String localFilePathString)
+    {
+
+        //System.out.println("\nUsage: CSV2Arff <input.csv> <output.arff>\n");
+
+        //file consistency check
+        try
+        {
+            File localFile = new File(localFilePathString);
+
+            //if the localFile is a directory, print message to standard error and return
+            if (localFile.isDirectory()) {
+                System.err.println("\n" + localFilePathString + " is a directory; not able to generate writable file path from it");
+            } // if
+            //there is a possibility given path does not exist which means does not refer to either file or directory
+            //so perform checks for each of them; which is equivalent to FileSystem.resolvePath() for HDFS
+            else if (localFile.isFile())
+            {
+                //get the parent directory of localFile
+                File localFileParentDir = localFile.getParentFile();
+
+                //make a new directory called <resultFileNameAppendix> in the parent directory; if that directory exists do not create it
+                //getAbsolutePath() returns path string without trailing directory separator
+                File resultingSubDir = new File(localFileParentDir.getAbsolutePath() + File.separator + "arff"); //newDirName);
+
+                //mkdir a directory if the resulting sub dir path does not exist
+                if (!resultingSubDir.exists())
+                    resultingSubDir.mkdir();
+
+
+                //change the file extension
+                String localFileName = localFile.getName();
+                String currentFileExtension = FilenameUtils.getExtension(localFileName);
+                String newLocalFileName = localFileName.replace(currentFileExtension, "arff"); //newFileExtension);
+
+
+                //now create a writable path from resultingSubDir and the given localFile
+                //getAbsolutePath() returns path string without trailing directory separator
+                String writableFilePathString = resultingSubDir.getAbsolutePath() + File.separator + newLocalFileName;
+
+                //create a file from writable path
+                File writableFile = new File(writableFilePathString);
+                writableFile.createNewFile();
+
+
+                //now generate arff file using WEKA API
+                // load CSV
+                CSVLoader loader = new CSVLoader();
+                loader.setSource(localFile);
+                loader.setNumericAttributes("1-38"); // forces all attributed to be set numeric, argument should be "first-last"
+                Instances data = loader.getDataSet();
+
+                // save ARFF
+                ArffSaver saver = new ArffSaver();
+                saver.setInstances(data);
+                saver.setFile(writableFile);
+                //saver.setDestination(writableFile); no need as of weka 3.5.3
+                saver.writeBatch();
+
+
+                System.out.println("Generated arff file at => " + writableFile.getAbsolutePath());
+            } // else if
+            else
+                System.err.println("\n" + localFilePathString + " is neither a file, nor a directory; please provide correct file path");
+
+        } // try
+        catch (Exception ex) {
+            ex.printStackTrace();
+        } // catch
+
+    } // csv2Arff
+
 
 } // class Utils
