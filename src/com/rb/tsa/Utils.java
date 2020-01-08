@@ -6,7 +6,9 @@ import weka.core.converters.ArffSaver;
 import weka.core.converters.CSVLoader;
 
 import java.io.*;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
 import java.util.*;
 
 //class containing utility methods
@@ -151,7 +153,7 @@ public class Utils
 
     //helper method convert the file's or whatever input stream to string content;
     //some code snippets can cause IOException here, therefore we throw exception;
-    //it will be able to get string content both from local file or network file
+    //it will be able to get string content both from a local file or network file
     private static String stringContentFromInputStream(InputStream inputStream)
     {
         //string builder to contain all lines of the local file or network file
@@ -181,7 +183,7 @@ public class Utils
         {
             ex.printStackTrace();
 
-            //if any problem occurs during read operation, return an empty string which will yield empty array list of visits at the end
+            //if any problem occurs during read operation, return an empty string
             return "";
         } // catch
         finally {
@@ -218,7 +220,7 @@ public class Utils
                 return targetStream;
 
 
-            //at this point localFile exists and it is actually a file
+            //at this point localFile exists, and it is actually a file
             targetStream = new FileInputStream(localFile);
             //return the resulting input stream
             return targetStream;
@@ -296,7 +298,8 @@ public class Utils
     } // writeToLocalFileSystem
 
 
-    public static void csv2Arff(String localFilePathString)
+    //numeric attribute range in the form of "first-last"
+    public static void csv2Arff(String localFilePathString, String numericAttributeRange)
     {
 
         //System.out.println("\nUsage: CSV2Arff <input.csv> <output.arff>\n");
@@ -345,7 +348,7 @@ public class Utils
                 // load CSV
                 CSVLoader loader = new CSVLoader();
                 loader.setSource(localFile);
-                loader.setNumericAttributes("1-38"); // forces all attributed to be set numeric, argument should be "first-last"
+                loader.setNumericAttributes(numericAttributeRange); // forces all attributed to be set numeric, argument should be "first-last"
                 Instances data = loader.getDataSet();
 
                 // save ARFF
@@ -368,5 +371,74 @@ public class Utils
 
     } // csv2Arff
 
+
+    public static boolean isInteger(String str) {
+        try {
+            Integer.parseInt(str);
+            return true;
+        } catch (NumberFormatException nfe) {
+            return false;
+        }
+    }
+
+
+    public static boolean isFloat(String str) {
+        try {
+            Float.parseFloat(str);
+            return true;
+        } catch (NumberFormatException nfe) {
+            return false;
+        }
+    }
+
+
+    //method to calculate mean arterial (blood) pressure from systolic (sbp or sysabp) and diastolic (dbp or disabp) blood pressures
+    public static float map(int sbp, int dbp)
+    {
+        if(sbp < 0 || dbp < 0)
+            return -1;
+
+        //formula is (sbp + 2 * dbp) / 3
+        float sum = sbp + 2.0f * dbp;
+
+        return format("#.##", RoundingMode.HALF_UP, sum / 3);
+    } // map
+
+
+    //helper method to calculate sysabp (sbp) from map and diasabp (dbp)
+    public static int sbp(float map, int dbp)
+    {
+        if(Float.compare(map, 0.0f) < 0 || dbp < 0)
+            return -1;
+
+        float sbp = 3.0f * map - 2.0f * dbp;
+        if(Float.compare(sbp, 0.0f) < 0)
+            return -1;
+
+        return (int) sbp;
+    } // sbp
+
+
+    //helper method to calculate diasabp (dbp) from mao and sysabp (sbp)
+    public static int dbp(float map, int sbp)
+    {
+        if(Float.compare(map, 0.0f) < 0 || sbp < 0)
+            return -1;
+
+        float dbp = (3.0f * map - 1.0f * sbp) / 2.0f;
+        if(Float.compare(dbp, 0.0f) < 0)
+            return -1;
+
+        return (int) dbp;
+    } // dbp
+
+
+    public static float format(String decimalFormatPattern, RoundingMode roundingMode, float value)
+    {
+        DecimalFormat df = new DecimalFormat(decimalFormatPattern);
+        df.setRoundingMode(roundingMode);
+
+        return Float.parseFloat(df.format(value));
+    } // format
 
 } // class Utils
