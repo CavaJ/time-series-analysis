@@ -1,6 +1,7 @@
 package com.rb.tsa;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.StringUtils;
 import weka.core.Instances;
 import weka.core.converters.ArffSaver;
 import weka.core.converters.CSVLoader;
@@ -235,9 +236,13 @@ public class Utils
     } // inputStreamFromLocalFilePath
 
 
-    public static void writeToLocalFileSystem(String localFilePathString, String newDirName,
+    //returns the path of the written file
+    public static String writeToLocalFileSystem(String localFilePathString, String newDirName,
                                               String writableContent, String newFileExtension)
     {
+        //new file path to return
+        String newFilePath = null;
+
         //to be closed in finally
         PrintWriter printWriter = null;
 
@@ -283,6 +288,9 @@ public class Utils
                 printWriter.print(writableContent);
 
                 System.out.println("Wrote file => " + writableFile.getAbsolutePath());
+
+                //update newFilePath
+                newFilePath = writableFile.getAbsolutePath();
             } // else if
             else
                 System.err.println("\n" + localFilePathString + " is neither a file nor a directory; please provide correct file path");
@@ -295,7 +303,68 @@ public class Utils
             if (printWriter != null) printWriter.close();
         } // finally
 
+
+        //return the file path
+        return newFilePath;
     } // writeToLocalFileSystem
+
+    //enum for var range values
+    static class Ranges
+    {
+        public String OUTLIER_LOW;
+        public String VALID_LOW;
+        public String IMPUTE;
+        public String VALID_HIGH;
+        public String OUTLIER_HIGH;
+
+        public Ranges(String OUTLIER_LOW, String VALID_LOW, String IMPUTE, String VALID_HIGH, String OUTLIER_HIGH)
+        {
+            this.OUTLIER_LOW = OUTLIER_LOW;
+            this.VALID_LOW = VALID_LOW;
+            this.IMPUTE = IMPUTE;
+            this.VALID_HIGH = VALID_HIGH;
+            this.OUTLIER_HIGH = OUTLIER_HIGH;
+        } // Ranges
+
+        public String toString()
+        {
+            return OUTLIER_LOW + "," + VALID_LOW + "," + IMPUTE + "," + VALID_HIGH + "," + OUTLIER_HIGH;
+        } // toString
+    } // class Ranges
+
+
+    //helper method to return var and its ranges
+    public static LinkedHashMap<String, Ranges> varRanges(String varRangesFilePath)
+    {
+        //read the variable ranges file and extract the ranges
+        String varRangesFileContents = Utils.fileContentsFromLocalFilePath(varRangesFilePath);
+        String[] varRangesLines = StringUtils.split(varRangesFileContents, "\r\n|\r|\n");
+        //first line is the header line, extract the range variables
+
+        //map to hold var name and its ranges
+        LinkedHashMap<String, Ranges> varAndRangesMap = new LinkedHashMap<>();
+
+        //now for each other line, extract the ranges of each variable, each line contains one variable, except first header line
+        for(int index = 1; index < varRangesLines.length; index ++)
+        {
+            String thisLine = varRangesLines[index];
+
+            //thisLineComponents will have the same length as of ranges
+            String[] thisLineComponents = thisLine.split(",");
+            for(int idx = 0; idx < thisLineComponents.length; idx ++) thisLineComponents[idx] = thisLineComponents[idx].trim(); // trim every element
+
+            //var name is at index 0 of thisLineComponents
+            String thisVar = thisLineComponents[0];
+            //OUTLIER_LOW, VALID_LOW, IMPUTE, VALID_HIGH, OUTLIER_HIGH
+            Ranges rangesForThisVar
+                    = new Ranges(thisLineComponents[1], thisLineComponents[2], thisLineComponents[3], thisLineComponents[4], thisLineComponents[5]);
+
+            //update the map
+            varAndRangesMap.put(thisVar, rangesForThisVar);
+        } // for
+
+        return varAndRangesMap;
+    } // varRanges
 
 
     //numeric attribute range in the form of "first-last"
@@ -440,5 +509,18 @@ public class Utils
 
         return Float.parseFloat(df.format(value));
     } // format
+
+
+    //helper method to calculate the mean of float point values
+    public static float mean(Collection<Float> values)
+    {
+        float sum = 0.0f;
+        for(float value : values)
+        {
+            sum += value;
+        } // for
+
+        return format("#.##", RoundingMode.HALF_UP, sum / values.size());
+    } // mean
 
 } // class Utils

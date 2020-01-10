@@ -2,14 +2,20 @@ package com.rb.tsa;
 
 
 
+import javafx.collections.ObservableFloatArray;
+import org.apache.commons.lang3.Range;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.math.RoundingMode;
 import java.util.*;
 
-public class Launcher {
+public class Launcher
+{
     private static final String DATA_FOLDER = "C:\\Users\\rbabayev\\Downloads\\physionet-challenge\\original_data";
+    private static final String
+            VAR_RANGES_FILE_PATH = "C:\\Users\\rbabayev\\Downloads\\physionet-challenge\\original_data\\variable_ranges_physionet.csv";
+
 
     //to check whether the variable naming is consistent throughout the dataset
     //private static HashSet<String> differentVariableNames = new HashSet<String>();
@@ -28,11 +34,13 @@ public class Launcher {
         varsToDiscard.add("Height");
         varsToDiscard.add("ICUType");
         //varsToDiscard.add("Weight"); // both general descriptor and time series variable, handled carefully
+        varsToDiscard.add("MechVent"); // this is a time series variable with values 0 and 1, but no significance in time series prediction, therefore discarded
 
 
         String[] vars = new String[]{"Albumin", "ALP", "ALT", "AST", "Bilirubin", "BUN", "Cholesterol", "Creatinine",
-                "DiasABP", "FiO2", "GCS", "Glucose", "HCO3", "HCT", "HR", "K", "Lactate", "Mg", "MAP", "MechVent", "Na",
-                "NIDiasABP", "NIMAP", "NISysABP", "PaCO2", "PaO2", "pH", "Platelets", "RespRate", "SaO2",
+                "DiasABP", "FiO2", "GCS", "Glucose", "HCO3", "HCT", "HR", "K", "Lactate", "Mg", "MAP",
+                /*"MechVent",*/  // discarded MechVent variable which has the value of only 0 or 1, added this variable to the set of discarded variables above
+                "Na", "NIDiasABP", "NIMAP", "NISysABP", "PaCO2", "PaO2", "pH", "Platelets", "RespRate", "SaO2",
                 "SysABP", "Temp", "TroponinI", "TroponinT", "Urine", "WBC", "Weight"};
         TreeSet<String> consideredVars = new TreeSet<String>(Arrays.asList(vars));
 
@@ -57,8 +65,13 @@ public class Launcher {
         allFilePaths.addAll(setCFilePaths);
 
 
-        //generateTimeSeriesData(varsToDiscard, consideredVars, allFilePaths, "");
+
+        //generateTimeSeriesData(varsToDiscard, consideredVars, allFilePaths, "", "prepro");
         //generateTimeSeriesData2(varsToDiscard, consideredVars, allFilePaths);
+//
+//        for(String localFilePath : allPreProFilePaths)
+//            Utils.csv2Arff(localFilePath, "1-" + (consideredVars.size() + 1)); // +1 for tsMinutes
+
 
         List<String> setAPreProFilePaths = Utils.listFilesFromLocalPath(setADir + File.separator + "prepro", false);
         List<String> setBPreProFilePaths = Utils.listFilesFromLocalPath(setBDir + File.separator + "prepro", false);
@@ -68,9 +81,23 @@ public class Launcher {
         allPreProFilePaths.addAll(setAPreProFilePaths);
         allPreProFilePaths.addAll(setBPreProFilePaths);
         allPreProFilePaths.addAll(setCPreProFilePaths);
-//
-//        for(String localFilePath : allPreProFilePaths)
-//            Utils.csv2Arff(localFilePath, "1-38");
+
+
+        //remove outliers depending on variable ranges
+        //List<String> allOutlierRemovalFilePaths =
+        //        removeOutliers(consideredVars, allPreProFilePaths, VAR_RANGES_FILE_PATH, "", "outlier_removal");
+
+
+        List<String> setAOutlierRemovalFilePaths
+                = Utils.listFilesFromLocalPath(setADir + File.separator + "prepro" + File.separator + "outlier_removal", false);
+        List<String> setBOutlierRemovalFilePaths
+                = Utils.listFilesFromLocalPath(setBDir + File.separator + "prepro" + File.separator + "outlier_removal", false);
+        List<String> setCOutlierRemovalFilePaths
+                = Utils.listFilesFromLocalPath(setCDir + File.separator + "prepro" + File.separator + "outlier_removal", false);
+        List<String> allOutlierRemovalFilePaths = new ArrayList<>();
+        allOutlierRemovalFilePaths.addAll(setAOutlierRemovalFilePaths);
+        allOutlierRemovalFilePaths.addAll(setBOutlierRemovalFilePaths);
+        allOutlierRemovalFilePaths.addAll(setCOutlierRemovalFilePaths);
 
 
         //combineVars(consideredVars, allPreProFilePaths, "", BloodPressurePreference.PreferInvasive);
@@ -89,17 +116,20 @@ public class Launcher {
         //for(String localFilePath : allVarJoinFilePaths)
         //    Utils.csv2Arff(localFilePath, "1-35");
 
-        //TODO check which variable has all values missing in each file and which lines has all values missing in each file
+
         String[] newVars = new String[] {"(NI)DiasABP", "(NI)MAP", "(NI)SysABP", "ALP", "ALT", "AST", "Albumin", "BUN",
                 "Bilirubin", "Cholesterol", "Creatinine", "FiO2", "GCS", "Glucose", "HCO3", "HCT", "HR", "K", "Lactate",
-                "MechVent", "Mg", "Na", "PaCO2", "PaO2", "Platelets", "RespRate", "SaO2", "Temp", "TroponinI", "TroponinT",
+                /*"MechVent",*/ // discarded MechVent variable which has only 0 or 1
+                "Mg", "Na", "PaCO2", "PaO2", "Platelets", "RespRate", "SaO2", "Temp", "TroponinI", "TroponinT",
                 "Urine", "WBC", "Weight", "pH"};
         TreeSet<String> newConsideredVars = new TreeSet<String>(Arrays.asList(newVars));
-        checkAndFix(consideredVars, allVarJoinFilePaths); // TODO first check which lines are empty in each file, check MechVent
+        //checkAndFix(newConsideredVars, allVarJoinFilePaths);
+        //check variables before merging
+        //checkAndFix(consideredVars, allPreProFilePaths);
+        checkAndFix(consideredVars, allOutlierRemovalFilePaths);
 
 
-        //TODO join 6 variables together to obtain 33 variables
-        //TODO remove outliers?
+        //TODO remove outliers by using hand-enginnered file vs. by methodological approach
         //TODO incorporate outcomes and general descriptors in data pre-processing routine
         //TODO handle empty variables, empty files and missing data
 
@@ -111,10 +141,300 @@ public class Launcher {
 
     } // main
 
-    private static void checkAndFix(TreeSet<String> consideredVars, List<String> allVarJoinFilePaths)
+    private static void checkAndFix(TreeSet<String> newConsideredVars, List<String> allVarJoinFilePaths)
     {
-        
+        //no patients have age smaller than 15, which is also used by GRU-D and deep learning benchmark papers for MIMIC-III dataset, too.
+
+        //int fileCounter = 0;
+
+        int tsCountSum = 0;
+
+        int maxTimeStep = 0;
+
+
+        //create a list from newConsideredVars which keeps the insertion order
+        ArrayList<String> newConsideredVarsList = new ArrayList<>(newConsideredVars);
+        //also add tsMinutes into considered var list at the index of 0
+        newConsideredVarsList.add(0, "tsMinutes");
+
+
+        //fileName, varName, varEmptiness
+        //HashMap<String, LinkedHashMap<String, StringBuilder>> fileNameVarEmptinessMap = new HashMap<>();
+
+        //map to collect all variable values in all files in an ordered fashion, such that max and min can be extracted
+        LinkedHashMap<String, TreeSet<Float>> varAndOrderedValuesMap = new LinkedHashMap<>();
+        //initialize the map with all variables
+        for(String var : newConsideredVars)
+            varAndOrderedValuesMap.put(var, new TreeSet<Float>());
+
+
+        for(String localFilePath : allVarJoinFilePaths)
+        {
+            String fileContents = Utils.fileContentsFromLocalFilePath(localFilePath);
+            String[] lines = StringUtils.split(fileContents,"\r\n|\r|\n");
+
+            int emptyLinesCount = 0;
+
+            LinkedHashMap<String, StringBuilder> varAndEmptinessMap = new LinkedHashMap<>(); // to keep the insertion order
+            for(String var : newConsideredVars)
+            {
+                //populate all vars with empty string builders
+                varAndEmptinessMap.put(var, new StringBuilder(""));
+            } // for
+
+
+            //discard empty files
+            //if(lines.length - 1 == 0)
+            //    println("File: " + localFilePath + " => is empty" + "\n");
+
+
+            //line at index 0 is a header line, do not touch it
+            for(int index = 1; index < lines.length; index ++)
+            {
+                String thisLine = lines[index];
+
+                //divide this line to components
+                String[] thisLineComponents = thisLine.split(",");
+
+                //newConsideredVarsList and thisLineComponents must have the same size
+                //it is ensured by adding tsMinutes to newConsideredVarsList above the outer for loop
+
+                for(String var : newConsideredVars)
+                {
+                    int indexOfVar = newConsideredVarsList.indexOf(var);
+                    String varValue = thisLineComponents[indexOfVar].trim(); // trim to get rid of spaces
+
+                    //update map
+                    varAndEmptinessMap.get(var).append(varValue);
+
+                    TreeSet<Float> varValuesSet = varAndOrderedValuesMap.get(var);
+                    if(Utils.isFloat(varValue))
+                        varValuesSet.add(Float.valueOf(varValue));
+                } // for
+
+
+                //there is no other line with all variables empty except the line with time stamp 0
+                //line with time stamp 0 is discarded for all files in generateTimeSeriesData() method
+                //StringBuilder empty = new StringBuilder("");
+                //for(int idx = 1; idx < thisLineComponents.length; idx ++) // discard the first component which is ts minutes and is always nonempty
+                //    empty.append(thisLineComponents[idx].trim());
+                //
+                //if(empty.toString().isEmpty())
+                //{
+                //    emptyLinesCount++;
+                //    println("File: " + localFilePath + " => empty line => " + index);
+                //}
+
+            } // for
+
+            //after checking all lines we have populated, put var and its emptiness as a map for this file
+            //fileNameVarEmptinessMap.put(Utils.fileNameFromPath(localFilePath), varAndEmptinessMap);
+
+
+
+            //check which variable has all values missing in each file
+            //no variable is empty in all files, but separate files have empty variables
+            //StringBuilder emptyVarsDescription = new StringBuilder("");
+            //for(String var : varAndEmptinessMap.keySet())
+            //{
+            //    if(varAndEmptinessMap.get(var).toString().isEmpty())
+            //        emptyVarsDescription.append("\"").append(var).append("\"").append(",");
+            //} // for
+            //println("File : " + localFilePath + " => "  + emptyVarsDescription.toString() + " are empty");
+            //System.out.println();
+
+
+            //count the number of files with number of lines >= 20, -2 for header line and line with time stamp 0
+            //if(lines.length - 2 >= 20) fileCounter ++;
+
+
+
+
+
+
+
+            //TODO they have merged some lines together, e.g. by a time interval, check this
+
+            tsCountSum += lines.length - 1 - emptyLinesCount; // -1 for header line
+            if(lines.length - 1 - emptyLinesCount > maxTimeStep)
+                maxTimeStep = lines.length - 1 - emptyLinesCount;
+
+        } // for all files
+
+
+        //for each variable prints its value set
+        for(String var : varAndOrderedValuesMap.keySet())
+            println("\"" + var + "\" => " + varAndOrderedValuesMap.get(var) + ", Mean => "
+                    + Utils.mean(varAndOrderedValuesMap.get(var)) + ", Size: " + varAndOrderedValuesMap.get(var).size() + "\n");
+
+
+
+
+//        LinkedHashMap<String, Boolean> globalVarEmptinessMap = new LinkedHashMap<>();
+//        for(String var : newConsideredVars)
+//        {
+//            //initially all vars are empty
+//            globalVarEmptinessMap.put(var, true);
+//        } // for
+//
+//
+//        //now for all files and for all variables populate the above map
+//        for(String fileName : fileNameVarEmptinessMap.keySet())
+//        {
+//            for(String var : fileNameVarEmptinessMap.get(fileName).keySet())
+//            {
+//                Boolean currentEmptiness = globalVarEmptinessMap.get(var);
+//                Boolean newEmptiness
+//                        = currentEmptiness && fileNameVarEmptinessMap.get(fileName).get(var).toString().isEmpty();
+//                globalVarEmptinessMap.put(var, newEmptiness);
+//            } // for
+//        } // for
+//
+//
+//        for(String var : globalVarEmptinessMap.keySet())
+//        {
+//            if(globalVarEmptinessMap.get(var))
+//                println("\"" + var + "\" is empty in all files");
+//        } // for
+
+
+        //Number of files (set-a, set-b, set-c, lines.length - 1 >= 20) with number of lines >= 20: 11815 vs. all files count: 12000
+        //println("Number of files with number of lines >= 20: " + fileCounter + " vs. all files count: " + allVarJoinFilePaths.size());
+
+        //Average number of time stamps in 12000 files (set-a, set-b, set-c, tsCountSum += lines.length - 1): 74.86266666666667
+        //Average number of time stamps in 4000 files (set-a, tsCountSum += lines.length - 1): 74.816
+        //Average number of time stamps in 4000 files (set-b, tsCountSum += lines.length - 1): 74.767
+        //Average number of time stamps in 4000 files (set-c, tsCountSum += lines.length - 1): 75.005
+        println("Average number of time stamps in " + allVarJoinFilePaths.size() + " files: " + (tsCountSum / (allVarJoinFilePaths.size() * 1.0)));
+
+        //Maximum time steps in 4000 files (set-a, lines.length - 1 > maxTimeStep): 203
+        println("Maximum time steps in " + + allVarJoinFilePaths.size() + " files: " + maxTimeStep);
     } // checkAndFix
+
+
+
+
+
+
+
+    //helper method to remove outliers based on specified variable ranges
+    public static List<String> removeOutliers(TreeSet<String> consideredVars, List<String> allPreProFilePaths,
+                                              String varRangesFilePath, String missingValuePlaceHolder, String newDirNameToPutFiles)
+    {
+        //the new file paths to return
+        List<String> newFilePaths = new ArrayList<>();
+
+
+        //create a list from consideredVars which keeps the insertion order
+        ArrayList<String> consideredVarsList = new ArrayList<>(consideredVars);
+        //also add tsMinutes into considered var list at the index of 0
+        consideredVarsList.add(0, "tsMinutes");
+
+
+        LinkedHashMap<String, Utils.Ranges> varRanges = Utils.varRanges(varRangesFilePath);
+        //for(String var : varRanges.keySet())
+        //    println("\"" + var + "\" => " + varRanges.get(var));
+
+
+        //calculate the padding length
+        int defaultPaddingLength = Utils.defaultPaddingLength(consideredVars);
+
+
+        //now read all files one by one and remove outliers
+        for(String localFilePath : allPreProFilePaths)
+        {
+            String fileContents = Utils.fileContentsFromLocalFilePath(localFilePath);
+            String[] lines = StringUtils.split(fileContents, "\r\n|\r|\n");
+
+
+            StringBuilder linesBuilder
+                    = new StringBuilder(Utils.padLeftSpaces("tsMinutes", defaultPaddingLength));
+            //now populate the first line with new considered vars
+            for(String consideredVarName : consideredVars)
+                linesBuilder.append(",").append(Utils.padLeftSpaces(consideredVarName, defaultPaddingLength));
+            linesBuilder.append("\n");
+
+
+            //for each line, split and obtain variable value, skip the first line which is the header line
+            for(int index = 1; index < lines.length; index ++)
+            {
+                String thisLine = lines[index];
+
+                //obtain the components of this line
+                String[] thisLineComponents = thisLine.split(",");
+
+
+                //append tsMinutes first, it is at index 0
+                linesBuilder.append(Utils.padLeftSpaces(thisLineComponents[0], defaultPaddingLength));
+
+
+                //thisLineComponents and consideredVarsList have the same length and variable names, values are indexed at the same location
+                for(int idx = 1; idx < thisLineComponents.length; idx ++) // skip tsMinutes by starting at idx 1
+                {
+                    String varName = consideredVarsList.get(idx);
+                    String varValue = thisLineComponents[idx];
+
+                    //obtain ranges for the current variable
+                    Utils.Ranges ranges = varRanges.get(varName);
+
+                    //new var value after outlier removal
+                    String newVarValue;
+
+                    //all variable values are numeric and can be converted to float
+                    //the check will also eliminate parsing of missing or incorrect data
+                    if(Utils.isFloat(varValue))
+                    {
+                        //V.ix[V < ranges.OUTLIER_LOW[variable]] = np.nan
+                        //V.ix[V > ranges.OUTLIER_HIGH[variable]] = np.nan
+                        //V.ix[V < ranges.VALID_LOW[variable]] = ranges.VALID_LOW[variable]
+                        //V.ix[V > ranges.VALID_HIGH[variable]] = ranges.VALID_HIGH[variable]
+
+                        float fValue = Float.parseFloat(varValue);
+                        float outlierLow = Float.parseFloat(ranges.OUTLIER_LOW);
+                        float outlierHigh = Float.parseFloat(ranges.OUTLIER_HIGH);
+                        float validLow = Float.parseFloat(ranges.VALID_LOW);
+                        float validHigh = Float.parseFloat(ranges.VALID_HIGH);
+
+                        if(Float.compare(fValue, outlierLow) < 0)
+                            newVarValue = missingValuePlaceHolder;
+                        else if(Float.compare(fValue, outlierHigh) > 0)
+                            newVarValue = missingValuePlaceHolder;
+                        //at this point -> outlierLow <= fValue <= outlierHigh
+                        else if(Float.compare(fValue, validLow) < 0) //outlierLow <= fValue < validLow
+                            newVarValue = validLow + "";
+                        else if(Float.compare(fValue, validHigh) > 0) //validHigh < fValue <= outlierHigh
+                            newVarValue = validHigh + "";
+                        else                                    // validLow <= fValue <= validHigh
+                            newVarValue = varValue;
+                    } // if
+                    else newVarValue = missingValuePlaceHolder;
+
+
+                    //append each line component
+                    linesBuilder.append(",").append(Utils.padLeftSpaces(newVarValue, defaultPaddingLength));
+                } // for each line component
+
+                //new line
+                linesBuilder.append("\n");
+
+            } // for each line
+
+
+            //write results to local file system, method might return null if IO exception occurs
+            String newFilePath = Utils.writeToLocalFileSystem(localFilePath, newDirNameToPutFiles, linesBuilder.toString(), "csv");
+            if(newFilePath != null)
+                newFilePaths.add(newFilePath);
+            else
+                System.err.println("newFilePath is null at removeOutliersMethod() method");
+        } // for each file
+
+
+        return newFilePaths;
+    } // removeOutliers
+
+
+
+
 
 
     //helper method to combine:
@@ -412,9 +732,13 @@ public class Launcher {
     //ts1, var1Value, var2Value, var3Value, ....
     //ts2, var1Value, var2Value, var3Value, ....
     //...
-    public static void generateTimeSeriesData(HashSet<String> varsToDiscard, TreeSet<String> consideredVars, List<String> allFilePaths,
-                                              String missingValuePlaceHolder)
+    public static List<String> generateTimeSeriesData(HashSet<String> varsToDiscard, TreeSet<String> consideredVars, List<String> allFilePaths,
+                                              String missingValuePlaceHolder, String newDirNameToPutFiles)
     {
+        //file paths generated at the end
+        List<String> newFilePaths = new ArrayList<>();
+
+
         //default padding length is the length of the variable with the longest name
         int defaultPaddingLength = Utils.defaultPaddingLength(consideredVars);
 
@@ -501,6 +825,11 @@ public class Launcher {
                 } // while
 
 
+                //explicitly remove the key == 0 and associated values, since, timestamp==0 has all variables empty
+                tsLineValuesMap.remove(0);
+
+
+
                 //now build a string from the values of variables and create a new file
                 StringBuilder sb = new StringBuilder(firstLineOfANewFile).append("\n");
                 //now for each key-value pair, add it to the sb
@@ -511,19 +840,22 @@ public class Launcher {
                 } // for
 
 
-                //write results to local file system
-                Utils.writeToLocalFileSystem(filePath, "prepro", sb.toString(), "csv");
-
+                //write results to local file system, method might return null if IO exception occurs
+                String newFilePath = Utils.writeToLocalFileSystem(filePath, newDirNameToPutFiles, sb.toString(), "csv");
+                if(newFilePath != null)
+                    newFilePaths.add(newFilePath);
+                else
+                    System.err.println("newFilePath is null at generateTimeSeriesData() method");
 
             } catch (Exception ex) {
                 ex.printStackTrace();
-
-
             } // catch
 
 
         } // for
 
+
+        return newFilePaths;
     } // generateTimeSeriesData
 
 
@@ -630,6 +962,11 @@ public class Launcher {
 
                 } // while
 
+
+                //explicitly remove the key == 0 and associated values, since, timestamp 0 has all variables empty
+                tsLineValuesMap.remove(0);
+
+
                 //now populate the map in the form:
                 //       ts1:   ts2:    ts3:
                 //var1 :  1     2       3
@@ -659,7 +996,7 @@ public class Launcher {
 
 
                 //now populate the first line
-                for(int timeStampMinutes : tsLineValuesMap.keySet())
+                for(Integer timeStampMinutes : tsLineValuesMap.keySet())
                 {
                     linesBuilder
                             .append(",")
@@ -699,5 +1036,9 @@ public class Launcher {
 
     } // generateTimeSeriesData2
 
+    private static void println(Object o)
+    {
+        System.out.println(o);
+    } // println
 
 } // class Launcher
