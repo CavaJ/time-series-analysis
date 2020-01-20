@@ -308,33 +308,12 @@ public class Utils
         return newFilePath;
     } // writeToLocalFileSystem
 
-    //enum for var range values
-    static class Ranges
-    {
-        public String OUTLIER_LOW;
-        public String VALID_LOW;
-        public String IMPUTE;
-        public String VALID_HIGH;
-        public String OUTLIER_HIGH;
-
-        public Ranges(String OUTLIER_LOW, String VALID_LOW, String IMPUTE, String VALID_HIGH, String OUTLIER_HIGH)
-        {
-            this.OUTLIER_LOW = OUTLIER_LOW;
-            this.VALID_LOW = VALID_LOW;
-            this.IMPUTE = IMPUTE;
-            this.VALID_HIGH = VALID_HIGH;
-            this.OUTLIER_HIGH = OUTLIER_HIGH;
-        } // Ranges
-
-        public String toString()
-        {
-            return OUTLIER_LOW + "," + VALID_LOW + "," + IMPUTE + "," + VALID_HIGH + "," + OUTLIER_HIGH;
-        } // toString
-    } // class Ranges
 
 
+
+    //TODO LinkedHashMap<String, Ranges> can be ported to its own data structure called VarRanges
     //helper method to return var and its ranges
-    public static LinkedHashMap<String, Ranges> varRanges(String varRangesFilePath)
+    public static LinkedHashMap<String, Ranges> varRanges(Dataset dataset, String varRangesFilePath)
     {
         //read the variable ranges file and extract the ranges
         String varRangesFileContents = Utils.fileContentsFromLocalFilePath(varRangesFilePath);
@@ -357,7 +336,12 @@ public class Utils
             String thisVar = thisLineComponents[0];
             //OUTLIER_LOW, VALID_LOW, IMPUTE, VALID_HIGH, OUTLIER_HIGH
             Ranges rangesForThisVar
-                    = new Ranges(thisLineComponents[1], thisLineComponents[2], thisLineComponents[3], thisLineComponents[4], thisLineComponents[5]);
+                    = new Ranges(dataset, thisVar,
+                    Float.parseFloat(thisLineComponents[1]),
+                    Float.parseFloat(thisLineComponents[2]),
+                    Float.parseFloat(thisLineComponents[3]),
+                    Float.parseFloat(thisLineComponents[4]),
+                    Float.parseFloat(thisLineComponents[5]));
 
             //update the map
             varAndRangesMap.put(thisVar, rangesForThisVar);
@@ -522,5 +506,82 @@ public class Utils
 
         return format("#.##", RoundingMode.HALF_UP, sum / values.size());
     } // mean
+
+
+    public static float median(Float[] input)
+    {
+        if (input.length == 0) {
+            throw new IllegalArgumentException("to calculate median we need at least 1 element");
+        }
+
+        Arrays.sort(input);
+
+        if (input.length % 2 == 0)
+        {
+            return (input[input.length / 2 - 1] + input[input.length / 2]) / 2;
+        }
+        else
+            return input[input.length / 2];
+    } // median
+
+
+    //var args to array method
+    public static <T> T[] varArgsToArray(T... args)
+    {
+        return args;
+    }
+
+
+    //helper method to generate outcomes from "outcomes" files
+    public static Outcomes outcomesFromLocalFilePaths(String lineComponentDelimiter, Dataset dataset, String... outcomesLocalFilePaths)
+    {
+        if(outcomesLocalFilePaths.length == 0)
+            throw new RuntimeException("Please provide at least one file path for outcomes");
+
+        //create outcomes for the given dataset
+        Outcomes outcomes = Outcomes.getInstance(dataset);
+
+        //now process each file
+        for(String outcomesFilePath : outcomesLocalFilePaths)
+        {
+            String fileContents = fileContentsFromLocalFilePath(outcomesFilePath);
+            //obtain lines
+            String[] lines = StringUtils.split(fileContents, "\r\n|\r|\n");
+
+            //now for each line, split the line, obtain the outcomes
+            //file structure is as follows:
+            //RecordID,SAPS-I,SOFA,Length_of_stay,Survival,In-hospital_death
+            //132539,6,1,5,-1,0
+            //132540,16,8,8,-1,0
+            //132541,21,11,19,-1,0
+            //.....
+
+            //all values are integer representable
+            //discard the first line which is the header line
+            for(int index = 1; index < lines.length; index ++)
+            {
+                String thisLine = lines[index];
+
+                //line will have 6 components
+                String[] thisLineComponents = thisLine.split(lineComponentDelimiter);
+
+                //retrieve values
+                int recordID = Integer.parseInt(thisLineComponents[0]);
+                int sapsIScore = Integer.parseInt(thisLineComponents[1]);
+                int sofaScore = Integer.parseInt(thisLineComponents[2]);
+                int lengthOfStayInDays = Integer.parseInt(thisLineComponents[3]);
+                int survivalInDays = Integer.parseInt(thisLineComponents[4]);
+                int inHospitalDeath0Or1 = Integer.parseInt(thisLineComponents[5]);
+
+                //create an outcome
+                Outcome outcome = new Outcome(recordID, sapsIScore, sofaScore, lengthOfStayInDays, survivalInDays, inHospitalDeath0Or1);
+                //update outcomes for this dataset
+                outcomes.add(recordID, outcome);
+
+            } // for each line
+        } // for each file
+
+        return outcomes;
+    } // outcomesFromLocalFilePaths
 
 } // class Utils

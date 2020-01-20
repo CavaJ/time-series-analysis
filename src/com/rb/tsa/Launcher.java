@@ -3,6 +3,7 @@ package com.rb.tsa;
 
 
 import javafx.collections.ObservableFloatArray;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.Range;
 import org.apache.commons.lang3.StringUtils;
 
@@ -14,17 +15,26 @@ public class Launcher
 {
     private static final String DATA_FOLDER = "C:\\Users\\rbabayev\\Downloads\\physionet-challenge\\original_data";
     private static final String
-            VAR_RANGES_FILE_PATH = "C:\\Users\\rbabayev\\Downloads\\physionet-challenge\\original_data\\variable_ranges_physionet.csv";
+            VAR_RANGES_FILE_PATH = DATA_FOLDER + "\\variable_ranges_physionet.csv";
 
 
     //to check whether the variable naming is consistent throughout the dataset
     //private static HashSet<String> differentVariableNames = new HashSet<String>();
 
 
-    public static void main(String[] args) {
+    public static void main(String[] args)
+    {
         String setADir = DATA_FOLDER + "\\set-a";
         String setBDir = DATA_FOLDER + "\\set-b";
         String setCDir = DATA_FOLDER + "\\set-c";
+
+        String setAOutcomesFile = DATA_FOLDER + "\\Outcomes-a.txt";
+        String setBOutcomesFile = DATA_FOLDER + "\\Outcomes-b.txt";
+        String setCOutcomesFile = DATA_FOLDER + "\\Outcomes-c.txt";
+
+        //method to handle outcomes
+        Outcomes outcomes = Utils.outcomesFromLocalFilePaths(",", Dataset.PhysioNet, setAOutcomesFile, setBOutcomesFile, setCOutcomesFile);
+
 
         HashSet<String> varsToDiscard = new HashSet<>();
         //Variables to discard: RecordID, Age, Gender, Height, ICUType, Weight
@@ -66,7 +76,7 @@ public class Launcher
 
 
 
-        //generateTimeSeriesData(varsToDiscard, consideredVars, allFilePaths, "", "prepro");
+        //generateTimeSeriesData(varsToDiscard, consideredVars, outcomes, allFilePaths, "", "prepro");
         //generateTimeSeriesData2(varsToDiscard, consideredVars, allFilePaths);
 //
 //        for(String localFilePath : allPreProFilePaths)
@@ -85,7 +95,7 @@ public class Launcher
 
         //remove outliers depending on variable ranges
         //List<String> allOutlierRemovalFilePaths =
-        //        removeOutliers(consideredVars, allPreProFilePaths, VAR_RANGES_FILE_PATH, "", "outlier_removal");
+                //removeOutliers(consideredVars, allPreProFilePaths, VAR_RANGES_FILE_PATH, "", "outlier_removal");
 
 
         List<String> setAOutlierRemovalFilePaths
@@ -123,15 +133,19 @@ public class Launcher
                 "Mg", "Na", "PaCO2", "PaO2", "Platelets", "RespRate", "SaO2", "Temp", "TroponinI", "TroponinT",
                 "Urine", "WBC", "Weight", "pH"};
         TreeSet<String> newConsideredVars = new TreeSet<String>(Arrays.asList(newVars));
-        //checkAndFix(newConsideredVars, allVarJoinFilePaths);
+        checkAndFix(newConsideredVars, allVarJoinFilePaths);
         //check variables before merging
         //checkAndFix(consideredVars, allPreProFilePaths);
-        checkAndFix(consideredVars, allOutlierRemovalFilePaths);
+        //checkAndFix(consideredVars, allOutlierRemovalFilePaths);
 
 
-        //TODO remove outliers by using hand-enginnered file vs. by methodological approach
+        //TODO complete the generation of own hand-engineered file for outlier removal
+        //TODO remove outliers by methodological approach
         //TODO incorporate outcomes and general descriptors in data pre-processing routine
+        //TODO create general descriptor class which can read from its own files
         //TODO handle empty variables, empty files and missing data
+        //TODO add variable_ranges csv file to resources folder
+        //TODO implement MultidimensionalTimeSeries class
 
 
         //System.out.println("Number of different variables in PhysioNet dataset (after pre_processing): " + differentVariableNames.size());
@@ -317,8 +331,9 @@ public class Launcher
 
 
 
+    //TODO varRanges will be passed as an argument to this method
     //helper method to remove outliers based on specified variable ranges
-    public static List<String> removeOutliers(TreeSet<String> consideredVars, List<String> allPreProFilePaths,
+    public static List<String> removeOutliers(Dataset dataset, TreeSet<String> consideredVars, List<String> allPreProFilePaths,
                                               String varRangesFilePath, String missingValuePlaceHolder, String newDirNameToPutFiles)
     {
         //the new file paths to return
@@ -331,7 +346,7 @@ public class Launcher
         consideredVarsList.add(0, "tsMinutes");
 
 
-        LinkedHashMap<String, Utils.Ranges> varRanges = Utils.varRanges(varRangesFilePath);
+        LinkedHashMap<String, Ranges> varRanges = Utils.varRanges(dataset, varRangesFilePath);
         //for(String var : varRanges.keySet())
         //    println("\"" + var + "\" => " + varRanges.get(var));
 
@@ -352,6 +367,14 @@ public class Launcher
             //now populate the first line with new considered vars
             for(String consideredVarName : consideredVars)
                 linesBuilder.append(",").append(Utils.padLeftSpaces(consideredVarName, defaultPaddingLength));
+
+
+            //append metadata, metadata is available as the last component in the header row
+            String[] splits = lines[0].split(",");
+            linesBuilder.append(",").append(splits[splits.length - 1]);
+
+
+            //new line
             linesBuilder.append("\n");
 
 
@@ -375,7 +398,7 @@ public class Launcher
                     String varValue = thisLineComponents[idx];
 
                     //obtain ranges for the current variable
-                    Utils.Ranges ranges = varRanges.get(varName);
+                    Ranges ranges = varRanges.get(varName);
 
                     //new var value after outlier removal
                     String newVarValue;
@@ -390,20 +413,16 @@ public class Launcher
                         //V.ix[V > ranges.VALID_HIGH[variable]] = ranges.VALID_HIGH[variable]
 
                         float fValue = Float.parseFloat(varValue);
-                        float outlierLow = Float.parseFloat(ranges.OUTLIER_LOW);
-                        float outlierHigh = Float.parseFloat(ranges.OUTLIER_HIGH);
-                        float validLow = Float.parseFloat(ranges.VALID_LOW);
-                        float validHigh = Float.parseFloat(ranges.VALID_HIGH);
 
-                        if(Float.compare(fValue, outlierLow) < 0)
+                        if(Float.compare(fValue, ranges.getOutlierLow()) < 0)
                             newVarValue = missingValuePlaceHolder;
-                        else if(Float.compare(fValue, outlierHigh) > 0)
+                        else if(Float.compare(fValue, ranges.getOutlierHigh()) > 0)
                             newVarValue = missingValuePlaceHolder;
                         //at this point -> outlierLow <= fValue <= outlierHigh
-                        else if(Float.compare(fValue, validLow) < 0) //outlierLow <= fValue < validLow
-                            newVarValue = validLow + "";
-                        else if(Float.compare(fValue, validHigh) > 0) //validHigh < fValue <= outlierHigh
-                            newVarValue = validHigh + "";
+                        else if(Float.compare(fValue, ranges.getValidLow()) < 0) //outlierLow <= fValue < validLow
+                            newVarValue = ranges.getValidHigh() + "";
+                        else if(Float.compare(fValue, ranges.getValidHigh()) > 0) //validHigh < fValue <= outlierHigh
+                            newVarValue = ranges.getValidHigh() + "";
                         else                                    // validLow <= fValue <= validHigh
                             newVarValue = varValue;
                     } // if
@@ -493,13 +512,21 @@ public class Launcher
             //now populate the first line with new considered vars
             for(String newConsideredVarName : newConsideredVars)
                 linesBuilder.append(",").append(Utils.padLeftSpaces(newConsideredVarName, defaultPaddingLength));
-            linesBuilder.append("\n");
+            //linesBuilder.append("\n");
 
 
             try (Scanner scanner = new Scanner(fileContents))
             {
                 //discard the first line
-                scanner.nextLine();
+                String headerLine = scanner.nextLine();
+
+                //append metadata, metadata is available as the last component in the header row
+                String[] splits = headerLine.split(",");
+                linesBuilder.append(",").append(splits[splits.length - 1]);
+
+                //new line
+                linesBuilder.append("\n");
+
 
                 int lineNumber = 1;
 
@@ -732,9 +759,25 @@ public class Launcher
     //ts1, var1Value, var2Value, var3Value, ....
     //ts2, var1Value, var2Value, var3Value, ....
     //...
-    public static List<String> generateTimeSeriesData(HashSet<String> varsToDiscard, TreeSet<String> consideredVars, List<String> allFilePaths,
-                                              String missingValuePlaceHolder, String newDirNameToPutFiles)
+    public static List<String> generateTimeSeriesData(HashSet<String> varsToDiscard, TreeSet<String> consideredVars,
+                                                      Outcomes outcomes, List<String> allFilePaths,
+                                                      String missingValuePlaceHolder, String newDirNameToPutFiles)
     {
+        //metadata is added as the last component in the header row
+        /*
+        General descriptors:
+        --------------------
+        RecordID (a unique integer for each ICU stay)
+        Age (years)
+        Gender (0: female, or 1: male)
+        Height (cm)
+        ICUType (1: Coronary Care Unit, 2: Cardiac Surgery Recovery Unit,
+        3: Medical ICU, or 4: Surgical ICU)
+        Weight (kg)*.
+        --------------------
+        A value of -1 indicates missing or unknown data (for example, if a patient's height was not recorded).
+         */
+
         //file paths generated at the end
         List<String> newFilePaths = new ArrayList<>();
 
@@ -757,6 +800,16 @@ public class Launcher
             //System.out.println("Processing file: " + filePath);
 
             String fileContents = Utils.fileContentsFromLocalFilePath(filePath);
+
+
+            //all files are actually record ids
+            String fileName = Utils.fileNameFromPath(filePath);
+            int recordID = Integer.parseInt(FilenameUtils.removeExtension(fileName));
+
+
+            //general descriptors or meta parameters will be appended as the last component to the header row
+            //therefore, there is only one meta string builder for each file
+            StringBuilder metaBuilder = new StringBuilder().append(",").append("{"); //meta start withs ,{ => comma is for separating it from other variables
 
 
             //StringBuilder sb = new StringBuilder("");
@@ -802,18 +855,30 @@ public class Launcher
                         tsLineValuesMap.put(timeStampMinutes, lineValues);
                     }
 
-                    String variableName = lineComponents[1];
 
+                    String variableName = lineComponents[1];
                     String variableValue = lineComponents[2];
 
-                    //handle general descriptor variables; handle weight carefully for timestamp 0
-                    if(varsToDiscard.contains(variableName))
+
+                    ///handle MechVent carefully which is the variable we are not interested
+                    if(variableName.equals("MechVent"))
+                        continue; // continue to the next variable, each line represents one variable value
+
+
+
+                    //handle general descriptor variables (which are only available at timestamp 0);
+                    //handle weight carefully for timestamp 0
+                    if(varsToDiscard.contains(variableName) && timeStampMinutes == 0)
                     {
-                        //TODO do something
+                        //meta will have the following structure:
+                        //{RecordID: value;Age: value;Gender: value;Height: value;ICUType: value;Weight: value}
+                        metaBuilder.append(variableName).append("=").append(variableValue).append(";");
                     }
                     else if(variableName.equals("Weight") && timeStampMinutes == 0)
                     {
-                        //TODO do something
+                        //add weight at timestamp 0 as meta value
+                        //weight will be last meta value to be appended
+                        metaBuilder.append(variableName).append("=").append(variableValue).append(";");
                     }
                     else {
                         //get the index of variable name
@@ -823,6 +888,10 @@ public class Launcher
                     }
 
                 } // while
+
+                //close meta and add it the first line of a new file
+                metaBuilder.append("InHospitalDeath").append("=").append(outcomes.get(recordID).getInHospitalDeath0Or1()).append("}");
+                firstLineOfANewFile += metaBuilder.toString();
 
 
                 //explicitly remove the key == 0 and associated values, since, timestamp==0 has all variables empty
