@@ -1,9 +1,10 @@
 package com.rb.tsa;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 //data class which describes an outcome
-public class Outcome
+public class Outcome implements Serializable, Comparable<Outcome>
 {
     //outcome file has the following structure:
     //RecordID,SAPS-I,SOFA,Length_of_stay,Survival,In-hospital_death
@@ -76,14 +77,19 @@ public class Outcome
     public boolean equals(Object o)
     {
         if (this == o) return true;
-        if (!(o instanceof Outcome)) return false; // it is ok even if o is null
-        return this.hashCode() == ((Outcome) o).hashCode();
+        if (o == null || getClass() != o.getClass()) return false;
+        return recordID == ((Outcome) o).getRecordID();
     } // equals
 
     @Override
     public int hashCode()
     {
         return Objects.hash(recordID);
+    }
+
+    @Override
+    public int compareTo(Outcome other) {
+        return Integer.compare(recordID, other.getRecordID());
     }
 
 } // class

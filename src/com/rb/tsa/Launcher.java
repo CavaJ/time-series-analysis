@@ -2,9 +2,7 @@ package com.rb.tsa;
 
 
 
-import javafx.collections.ObservableFloatArray;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.Range;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
@@ -14,8 +12,6 @@ import java.util.*;
 public class Launcher
 {
     private static final String DATA_FOLDER = "C:\\Users\\rbabayev\\Downloads\\physionet-challenge\\original_data";
-    private static final String
-            VAR_RANGES_FILE_PATH = DATA_FOLDER + "\\variable_ranges_physionet.csv";
 
 
     //to check whether the variable naming is consistent throughout the dataset
@@ -24,16 +20,38 @@ public class Launcher
 
     public static void main(String[] args)
     {
-        String setADir = DATA_FOLDER + "\\set-a";
-        String setBDir = DATA_FOLDER + "\\set-b";
-        String setCDir = DATA_FOLDER + "\\set-c";
+        String setADir = DATA_FOLDER + File.separator + "set-a";
+        String setBDir = DATA_FOLDER + File.separator + "set-b";
+        String setCDir = DATA_FOLDER + File.separator + "set-c";
 
-        String setAOutcomesFile = DATA_FOLDER + "\\Outcomes-a.txt";
-        String setBOutcomesFile = DATA_FOLDER + "\\Outcomes-b.txt";
-        String setCOutcomesFile = DATA_FOLDER + "\\Outcomes-c.txt";
+        //snippet to generate general descriptors for each file of each file set in a separate file
+        //LinkedHashSet<String> descriptorVars = new LinkedHashSet<String>(Arrays.asList("RecordID", "Age", "Gender", "Height", "ICUType", "Weight"));
+        //Utils.writeGeneralDescriptorsRecords(descriptorVars, ",", DATA_FOLDER, "txt", setADir, setBDir, setCDir);
+        //System.exit(0);
+
+
+        //after running the above snippet we have the following files
+        String setAGenDescRecordsFile = DATA_FOLDER + File.separator + "GeneralDescriptorsRecords-a.txt";
+        String setBGenDescRecordsFile = DATA_FOLDER + File.separator + "GeneralDescriptorsRecords-b.txt";
+        String setCGenDescRecordsFile = DATA_FOLDER + File.separator + "GeneralDescriptorsRecords-c.txt";
+
+        String setAOutcomesFile = DATA_FOLDER + File.separator + "Outcomes-a.txt";
+        String setBOutcomesFile = DATA_FOLDER + File.separator + "Outcomes-b.txt";
+        String setCOutcomesFile = DATA_FOLDER + File.separator + "Outcomes-c.txt";
+
+
+        String varRangesFilePath = //DATA_FOLDER + "\\variable_ranges_physionet.csv";
+                "resources/variable_ranges_physionet.csv";
 
         //method to handle outcomes
         Outcomes outcomes = Utils.outcomesFromLocalFilePaths(",", Dataset.PhysioNet, setAOutcomesFile, setBOutcomesFile, setCOutcomesFile);
+        //method to handle var ranges
+        VarRanges varRanges = Utils.varRangesFromLocalFilePath(",", Dataset.PhysioNet, varRangesFilePath);
+        //method to handle general descriptors records
+        GeneralDescriptorsRecords genDescRecords
+                = Utils.generalDescriptorsRecordsFromLocalFilePaths(",",
+                            Dataset.PhysioNet, setAGenDescRecordsFile, setBGenDescRecordsFile, setCGenDescRecordsFile);
+
 
 
         HashSet<String> varsToDiscard = new HashSet<>();
@@ -95,7 +113,7 @@ public class Launcher
 
         //remove outliers depending on variable ranges
         //List<String> allOutlierRemovalFilePaths =
-                //removeOutliers(consideredVars, allPreProFilePaths, VAR_RANGES_FILE_PATH, "", "outlier_removal");
+                //removeOutliers(varRanges, consideredVars, allPreProFilePaths, "", "outlier_removal");
 
 
         List<String> setAOutlierRemovalFilePaths
@@ -133,7 +151,7 @@ public class Launcher
                 "Mg", "Na", "PaCO2", "PaO2", "Platelets", "RespRate", "SaO2", "Temp", "TroponinI", "TroponinT",
                 "Urine", "WBC", "Weight", "pH"};
         TreeSet<String> newConsideredVars = new TreeSet<String>(Arrays.asList(newVars));
-        checkAndFix(newConsideredVars, allVarJoinFilePaths);
+        //checkAndFix(newConsideredVars, allVarJoinFilePaths);
         //check variables before merging
         //checkAndFix(consideredVars, allPreProFilePaths);
         //checkAndFix(consideredVars, allOutlierRemovalFilePaths);
@@ -141,10 +159,8 @@ public class Launcher
 
         //TODO complete the generation of own hand-engineered file for outlier removal
         //TODO remove outliers by methodological approach
-        //TODO incorporate outcomes and general descriptors in data pre-processing routine
-        //TODO create general descriptor class which can read from its own files
+        //TODO remove metadata attachment to the header line
         //TODO handle empty variables, empty files and missing data
-        //TODO add variable_ranges csv file to resources folder
         //TODO implement MultidimensionalTimeSeries class
 
 
@@ -333,8 +349,8 @@ public class Launcher
 
     //TODO varRanges will be passed as an argument to this method
     //helper method to remove outliers based on specified variable ranges
-    public static List<String> removeOutliers(Dataset dataset, TreeSet<String> consideredVars, List<String> allPreProFilePaths,
-                                              String varRangesFilePath, String missingValuePlaceHolder, String newDirNameToPutFiles)
+    public static List<String> removeOutliers(VarRanges varRanges, TreeSet<String> consideredVars, List<String> allPreProFilePaths,
+                                               String missingValuePlaceHolder, String newDirNameToPutFiles)
     {
         //the new file paths to return
         List<String> newFilePaths = new ArrayList<>();
@@ -344,11 +360,6 @@ public class Launcher
         ArrayList<String> consideredVarsList = new ArrayList<>(consideredVars);
         //also add tsMinutes into considered var list at the index of 0
         consideredVarsList.add(0, "tsMinutes");
-
-
-        LinkedHashMap<String, Ranges> varRanges = Utils.varRanges(dataset, varRangesFilePath);
-        //for(String var : varRanges.keySet())
-        //    println("\"" + var + "\" => " + varRanges.get(var));
 
 
         //calculate the padding length
@@ -398,7 +409,7 @@ public class Launcher
                     String varValue = thisLineComponents[idx];
 
                     //obtain ranges for the current variable
-                    Ranges ranges = varRanges.get(varName);
+                    Ranges ranges = varRanges.getRanges(varName);
 
                     //new var value after outlier removal
                     String newVarValue;

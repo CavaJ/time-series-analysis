@@ -5,7 +5,7 @@ import java.io.Serializable;
 import java.util.Objects;
 
 //class to hold outlier removal ranges for the given variable
-public class Ranges implements Serializable
+public class Ranges implements Serializable, Comparable<Ranges>
 {
     private Dataset dataset;
     private String varName;
@@ -26,16 +26,11 @@ public class Ranges implements Serializable
         this.outlierHigh = outlierHigh;
     } // Ranges
 
-    public String toString()
-    {
-        return varName + "," + outlierLow + "," + validLow + "," + normal + "," + validHigh + "," + outlierHigh;
-    } // toString
-
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof Ranges)) return false; // it is ok even if o is null
+        if (o == null || getClass() != o.getClass()) return false;
         return this.hashCode() == ((Ranges) o).hashCode();
     }
 
@@ -44,6 +39,38 @@ public class Ranges implements Serializable
         return Objects.hash(dataset, varName);
     }
 
+
+    @Override
+    public int compareTo(Ranges other)
+    {
+        //more clear version of two-component compareTo
+        int result = dataset.compareTo(other.getDataset());
+        if(result == 0)
+        {
+            result = varName.compareTo(other.getVarName());
+        } // if
+        return result;
+    } // compareTo
+
+
+    //public String toString()
+    //{
+    //    return varName + "," + outlierLow + "," + validLow + "," + normal + "," + validHigh + "," + outlierHigh;
+    //} // toString
+
+
+    //toString
+    @Override
+    public String toString() {
+        return "Ranges{" +
+                "varName = '" + varName + '\'' +
+                ", outlierLow = " + outlierLow +
+                ", validLow = " + validLow +
+                ", normal = " + normal +
+                ", validHigh = " + validHigh +
+                ", outlierHigh = " + outlierHigh +
+                '}';
+    }
 
     public String getVarName() {
         return varName;
@@ -68,4 +95,10 @@ public class Ranges implements Serializable
     public float getOutlierHigh() {
         return outlierHigh;
     }
+
+    public Dataset getDataset()
+    {
+        return dataset;
+    }
+
 } // class Ranges

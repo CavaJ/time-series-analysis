@@ -54,6 +54,7 @@ public class Utils
         //-----------------------------------------------
         //returns empty string for not found file names e.g. for => "\\\\server\\share\\"
 
+        //return name of the directory if the path is a dir path
         return FilenameUtils.getName(path);
     } // fileNameFromPath
 
@@ -311,25 +312,25 @@ public class Utils
 
 
 
-    //TODO LinkedHashMap<String, Ranges> can be ported to its own data structure called VarRanges
     //helper method to return var and its ranges
-    public static LinkedHashMap<String, Ranges> varRanges(Dataset dataset, String varRangesFilePath)
+    public static VarRanges varRangesFromLocalFilePath(String lineComponentDelimiter, Dataset dataset, String varRangesLocalFilePath)
     {
         //read the variable ranges file and extract the ranges
-        String varRangesFileContents = Utils.fileContentsFromLocalFilePath(varRangesFilePath);
+        String varRangesFileContents = Utils.fileContentsFromLocalFilePath(varRangesLocalFilePath);
         String[] varRangesLines = StringUtils.split(varRangesFileContents, "\r\n|\r|\n");
         //first line is the header line, extract the range variables
 
-        //map to hold var name and its ranges
-        LinkedHashMap<String, Ranges> varAndRangesMap = new LinkedHashMap<>();
+        //obtain var ranges for this dataset
+        VarRanges varRanges = VarRanges.getInstance(dataset);
+
 
         //now for each other line, extract the ranges of each variable, each line contains one variable, except first header line
         for(int index = 1; index < varRangesLines.length; index ++)
         {
             String thisLine = varRangesLines[index];
 
-            //thisLineComponents will have the same length as of ranges
-            String[] thisLineComponents = thisLine.split(",");
+            //thisLineComponents will have the same length as of #ranges + 1
+            String[] thisLineComponents = thisLine.split(lineComponentDelimiter);
             for(int idx = 0; idx < thisLineComponents.length; idx ++) thisLineComponents[idx] = thisLineComponents[idx].trim(); // trim every element
 
             //var name is at index 0 of thisLineComponents
@@ -343,12 +344,108 @@ public class Utils
                     Float.parseFloat(thisLineComponents[4]),
                     Float.parseFloat(thisLineComponents[5]));
 
-            //update the map
-            varAndRangesMap.put(thisVar, rangesForThisVar);
+            //update the var ranges
+            varRanges.add(thisVar, rangesForThisVar);
         } // for
 
-        return varAndRangesMap;
+        return varRanges;
     } // varRanges
+
+
+    //helper method to extract general descriptors from all files in each set of files
+    //All valid values for general descriptors are non-negative (≥ 0).
+    //A value of -1 indicates missing or unknown data, e.g. height or weight are not recorded
+    //the structure to be returned is as follows:
+    //RecordID,Age,Gender,Height,ICUType,Weight
+    //132539,54,0,-1,4,-1
+    //......
+    public static void writeGeneralDescriptorsRecords(LinkedHashSet<String> descriptorVars, String lineComponentDelimiter,
+                                                      String destinationLocalDirPath, String newFileExtension, String ...fileSetLocalDirPaths)
+    {
+        //for each file set directory, write one general descriptors records
+        for(String thisFileSetDirPath : fileSetLocalDirPaths)
+        {
+            String thisFileSetDirName = fileNameFromPath(thisFileSetDirPath);
+
+            StringBuilder genDescRecordsBuilder = new StringBuilder(String.join(lineComponentDelimiter, descriptorVars)).append("\n");
+
+            //obtain file paths in this dir path
+            List<String> filePathsInThisDir = listFilesFromLocalPath(thisFileSetDirPath, false);
+
+            //now for each file, obtain general descriptors
+            for(String filePath : filePathsInThisDir)
+            {
+                //obtain file contents
+                String fileContents = fileContentsFromLocalFilePath(filePath);
+                //split the lines
+                String[] lines = StringUtils.split(fileContents, "\r\n|\r|\n");
+
+
+                //map which maps varName to its value
+                LinkedHashMap<String, String> varNameAndValueMap = new LinkedHashMap<>();
+                //populate
+                for(String varName : descriptorVars)
+                    varNameAndValueMap.put(varName, null);
+
+
+                //discard the first line, which is Time,Parameter,Value
+                //for each line obtain descriptor vars and their values
+                for(int index = 1; index < lines.length; index ++)
+                {
+                    String thisLine = lines[index];
+
+                    //split the line with delimiter and obtain values
+                    String[] thisLineComponents = thisLine.split(lineComponentDelimiter);
+
+                    //first component is timestamp in hh:mm, then var name and then its value
+                    int tsMinutes = Utils.toMinutes(thisLineComponents[0]);
+                    String varName = thisLineComponents[1];
+                    String varValue = thisLineComponents[2];
+
+                    if(descriptorVars.contains(varName) && tsMinutes == 0)
+                    {
+                        //in some files descriptors vars are ordered differently, so use map to insert value correctly
+                        varNameAndValueMap.put(varName, varValue);
+                    } // if
+
+                    //do not process other lines having tsMinutes bigger than 0
+                    if(tsMinutes > 0) break;
+                } // for each line
+
+
+                //populate general descriptors for this file
+                for(String varName : varNameAndValueMap.keySet())
+                    genDescRecordsBuilder.append(varNameAndValueMap.get(varName)).append(lineComponentDelimiter);
+                //append new line
+                genDescRecordsBuilder.append("\n");
+
+
+                //report if some variable have null value in the map after processing
+                if(varNameAndValueMap.containsValue(null))
+                    System.out.println("map, contains null value for some varName => " + filePath);
+            } // for each file
+
+
+            String newFileName
+                    = "GeneralDescriptorsRecords"
+                    + thisFileSetDirName.replace("set", "") + "." + newFileExtension;
+            try {
+                File newFile = new File(destinationLocalDirPath + File.separator + newFileName);
+                newFile.createNewFile();
+                PrintWriter pw = new PrintWriter(newFile);
+                pw.print(genDescRecordsBuilder.toString());
+                pw.close();
+
+                System.out.println("Wrote file => " + newFile.getAbsolutePath());
+            } catch (IOException e) {
+                e.printStackTrace();
+            } // catch
+
+        } // for each file set dir
+
+    } // writeGeneralDescriptorsRecords
+
+
 
 
     //numeric attribute range in the form of "first-last"
@@ -583,5 +680,67 @@ public class Utils
 
         return outcomes;
     } // outcomesFromLocalFilePaths
+
+
+    //helper method to obtain general descriptors from file paths
+    public static GeneralDescriptorsRecords
+                        generalDescriptorsRecordsFromLocalFilePaths(String lineComponentDelimiter, Dataset dataset,
+                                                                    String... generalDescriptorsRecordsLocalFilePaths)
+    {
+        if(generalDescriptorsRecordsLocalFilePaths.length == 0)
+            throw new RuntimeException("Please provide at least one file path for general descriptors records");
+
+        //create general descriptors records for the given dataset
+        GeneralDescriptorsRecords records = GeneralDescriptorsRecords.getInstance(dataset);
+
+        //now process each file
+        for(String genDescRecordsLocalFilePath : generalDescriptorsRecordsLocalFilePaths)
+        {
+            String fileContents = fileContentsFromLocalFilePath(genDescRecordsLocalFilePath);
+            //obtain lines
+            String[] lines = StringUtils.split(fileContents, "\r\n|\r|\n");
+
+            //now for each line, split the line, obtain the general descriptors records
+            //file structure is as follows:
+            ///RecordID,Age,Gender,Height,ICUType,Weight
+            //132539,54,0,-1,4,-1
+            //......
+
+
+            //discard the first line which is the header line
+            for(int index = 1; index < lines.length; index ++)
+            {
+                String thisLine = lines[index];
+
+                //line will have 6 components
+                String[] thisLineComponents = thisLine.split(lineComponentDelimiter);
+
+                try {
+                    //retrieve values
+                    int recordID = Integer.parseInt(thisLineComponents[0]);
+                    int ageInYears = Integer.parseInt(thisLineComponents[1]);
+                    int gender0or1 = Integer.parseInt(thisLineComponents[2]);
+                    float heightInCentimeters = Float.parseFloat(thisLineComponents[3]);
+                    int icuTypeCode = Integer.parseInt(thisLineComponents[4]);
+                    float weighInKg = Float.parseFloat(thisLineComponents[5]);
+
+                    //create a GeneralDescriptorsRecord
+                    GeneralDescriptorsRecord record = new GeneralDescriptorsRecord(recordID, ageInYears,
+                            gender0or1, heightInCentimeters, icuTypeCode, weighInKg);
+                    //update GeneralDescriptorsRecords for this dataset
+                    records.add(recordID, record);
+
+                }
+                catch(NumberFormatException ex)
+                {
+                    ex.printStackTrace();
+                    System.out.println(genDescRecordsLocalFilePath + "  => " + thisLine + " => " + (index + 1));
+                } // catch
+
+            } // for each line
+        } // for each file
+
+        return records;
+    } // generalDescriptorsRecordsFromLocalFilePaths
 
 } // class Utils

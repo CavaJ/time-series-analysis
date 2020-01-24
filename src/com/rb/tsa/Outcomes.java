@@ -1,12 +1,13 @@
 package com.rb.tsa;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.Set;
 
 //class to hold all outcomes from all different files
-public class Outcomes
+public class Outcomes implements Serializable, Comparable<Outcomes>
 {
     //main data structure to hold the outcomes
     //it will map from integer to outcome
@@ -76,8 +77,8 @@ public class Outcomes
     public boolean equals(Object o)
     {
         if (this == o) return true;
-        if (!(o instanceof Outcomes)) return false; // it is ok even if o is null
-        return this.hashCode() == ((Outcomes) o).hashCode();
+        if (o == null || getClass() != o.getClass()) return false;
+        return dataset == ((Outcomes) o).getDataset();
     }
 
     //hash code is determined by the dataset, since the same dataset cannot have two "outcomes" instances
@@ -85,6 +86,13 @@ public class Outcomes
     public int hashCode() {
         return Objects.hash(dataset);
     }
+
+    //for comparing two "outcomes" instances
+    public int compareTo(Outcomes other)
+    {
+        return dataset.compareTo(other.getDataset());
+    } // compareTo
+
 
     public String toString()
     {
