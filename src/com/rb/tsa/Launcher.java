@@ -49,8 +49,8 @@ public class Launcher
         VarRanges varRanges = Utils.varRangesFromLocalFilePath(",", Dataset.PhysioNet, varRangesFilePath);
         //method to handle general descriptors records
         GeneralDescriptorsRecords genDescRecords
-                = Utils.generalDescriptorsRecordsFromLocalFilePaths(",",
-                            Dataset.PhysioNet, setAGenDescRecordsFile, setBGenDescRecordsFile, setCGenDescRecordsFile);
+                = Utils.genDescRecordsFromLocalFilePaths(",", Dataset.PhysioNet,
+                                                setAGenDescRecordsFile, setBGenDescRecordsFile, setCGenDescRecordsFile);
 
 
 
@@ -141,6 +141,18 @@ public class Launcher
         allVarJoinFilePaths.addAll(setBVarJoinFilePaths);
         allVarJoinFilePaths.addAll(setCVarJoinFilePaths);
 
+
+
+        //obtain multivariate time series from each file
+        for(String filePath : allVarJoinFilePaths)
+        {
+            MultivariateTimeSeries mtse = MultivariateTimeSeries.fromFile(filePath, ",");
+            println(mtse.toVerticalString());
+            break;
+        } // for
+
+
+
         //for(String localFilePath : allVarJoinFilePaths)
         //    Utils.csv2Arff(localFilePath, "1-35");
 
@@ -159,9 +171,7 @@ public class Launcher
 
         //TODO complete the generation of own hand-engineered file for outlier removal
         //TODO remove outliers by methodological approach
-        //TODO remove metadata attachment to the header line
         //TODO handle empty variables, empty files and missing data
-        //TODO implement MultidimensionalTimeSeries class
 
 
         //System.out.println("Number of different variables in PhysioNet dataset (after pre_processing): " + differentVariableNames.size());
@@ -380,9 +390,10 @@ public class Launcher
                 linesBuilder.append(",").append(Utils.padLeftSpaces(consideredVarName, defaultPaddingLength));
 
 
+            //METADATA is obtained by GeneralDescriptorsRecords
             //append metadata, metadata is available as the last component in the header row
-            String[] splits = lines[0].split(",");
-            linesBuilder.append(",").append(splits[splits.length - 1]);
+            //String[] splits = lines[0].split(",");
+            //linesBuilder.append(",").append(splits[splits.length - 1]);
 
 
             //new line
@@ -523,30 +534,31 @@ public class Launcher
             //now populate the first line with new considered vars
             for(String newConsideredVarName : newConsideredVars)
                 linesBuilder.append(",").append(Utils.padLeftSpaces(newConsideredVarName, defaultPaddingLength));
-            //linesBuilder.append("\n");
+            linesBuilder.append("\n");
 
 
             try (Scanner scanner = new Scanner(fileContents))
             {
                 //discard the first line
-                String headerLine = scanner.nextLine();
+                //String headerLine =
+                scanner.nextLine();
 
+
+                //METADATA is obtained by GeneralDescriptorsRecords
                 //append metadata, metadata is available as the last component in the header row
-                String[] splits = headerLine.split(",");
-                linesBuilder.append(",").append(splits[splits.length - 1]);
-
-                //new line
-                linesBuilder.append("\n");
+                //String[] splits = headerLine.split(",");
+                //linesBuilder.append(",").append(splits[splits.length - 1]);
+                //linesBuilder.append("\n");
 
 
-                int lineNumber = 1;
+                //int lineNumber = 1;
 
                 //now read each line one by one
                 while(scanner.hasNextLine())
                 {
                     String thisLine = scanner.nextLine();
 
-                    lineNumber++;
+                    //lineNumber++;
 
                     //now split the line into contents
                     //each line contains tsMinutes and values of variables in the alphabetical order of variable names
@@ -806,6 +818,7 @@ public class Launcher
                 + "," + String.join(",", paddedConsideredVars);
         List<String> firstLineComponents = new ArrayList<>(consideredVars); firstLineComponents.add(0, "tsMinutes");
 
+
         for(String filePath : allFilePaths)
         {
             //System.out.println("Processing file: " + filePath);
@@ -820,7 +833,7 @@ public class Launcher
 
             //general descriptors or meta parameters will be appended as the last component to the header row
             //therefore, there is only one meta string builder for each file
-            StringBuilder metaBuilder = new StringBuilder().append(",").append("{"); //meta start withs ,{ => comma is for separating it from other variables
+            //StringBuilder metaBuilder = new StringBuilder().append(",").append("{"); //meta start withs ,{ => comma is for separating it from other variables
 
 
             //StringBuilder sb = new StringBuilder("");
@@ -879,34 +892,40 @@ public class Launcher
 
                     //handle general descriptor variables (which are only available at timestamp 0);
                     //handle weight carefully for timestamp 0
+                    //varsToDiscard does not contain Weight
                     if(varsToDiscard.contains(variableName) && timeStampMinutes == 0)
                     {
                         //meta will have the following structure:
                         //{RecordID: value;Age: value;Gender: value;Height: value;ICUType: value;Weight: value}
-                        metaBuilder.append(variableName).append("=").append(variableValue).append(";");
+                        //metaBuilder.append(variableName).append("=").append(variableValue).append(";");
                     }
-                    else if(variableName.equals("Weight") && timeStampMinutes == 0)
-                    {
-                        //add weight at timestamp 0 as meta value
-                        //weight will be last meta value to be appended
-                        metaBuilder.append(variableName).append("=").append(variableValue).append(";");
-                    }
+                    //WE CONSIDER WEIGHT VARIABLE AS A TIME SERIES VARIABLE AT TIMESTAMP 0
+                    //else if(variableName.equals("Weight") && timeStampMinutes == 0)
+                    //{
+                    //    //add weight at timestamp 0 as meta value
+                    //    //weight will be last meta value to be appended
+                    //    //metaBuilder.append(variableName).append("=").append(variableValue).append(";");
+                    //}
                     else {
                         //get the index of variable name
                         int index = firstLineComponents.indexOf(variableName);
                         //add the variable value to the corresponding index, it will update the map values implicitly
-                        lineValues[index] = Utils.padLeftSpaces(variableValue, defaultPaddingLength); //firstLineComponents.get(index).length());
+                        lineValues[index]
+                                = Utils.padLeftSpaces(ensureNonNegativityAndGet(variableValue, missingValuePlaceHolder),
+                                            defaultPaddingLength); //firstLineComponents.get(index).length());
                     }
 
                 } // while
 
+
                 //close meta and add it the first line of a new file
-                metaBuilder.append("InHospitalDeath").append("=").append(outcomes.get(recordID).getInHospitalDeath0Or1()).append("}");
-                firstLineOfANewFile += metaBuilder.toString();
+                //metaBuilder.append("InHospitalDeath").append("=").append(outcomes.get(recordID).getInHospitalDeath0Or1()).append("}");
+                //firstLineOfANewFile += metaBuilder.toString();
 
 
                 //explicitly remove the key == 0 and associated values, since, timestamp==0 has all variables empty
-                tsLineValuesMap.remove(0);
+                //WRONG 133919.txt in set-a has pH value at time stamp 0, do not remove the key
+                //tsLineValuesMap.remove(0);
 
 
 
@@ -932,7 +951,7 @@ public class Launcher
             } // catch
 
 
-        } // for
+        } // for each file
 
 
         return newFilePaths;
@@ -940,11 +959,30 @@ public class Launcher
 
 
 
+    //all variable values in physionet dataset are float representable, remove negative values of variables by the following method
+    //valid values of variables are non-negative (>= 0)
+    private static String ensureNonNegativityAndGet(String variableValue, String missingValuePlaceHolder)
+    {
+        if(Utils.isFloat(variableValue))
+        {
+            float fValue = Float.parseFloat(variableValue);
+            if(Float.compare(fValue, 0.0f) < 0)
+                return missingValuePlaceHolder;
+            else
+                return variableValue;
+        } // if
+        else
+            return missingValuePlaceHolder;
+    } // ensureNonNegativityAndGet
+
+
+
     //helper method to construct time series data in the following structure:
     //       ts1:   ts2:    ts3:
     //var1 :  1     2       3
     //var2:   1     2       3
-    public static void generateTimeSeriesData2(HashSet<String> varsToDiscard, TreeSet<String> consideredVars, List<String> allFilePaths)
+    public static void generateTimeSeriesData2(HashSet<String> varsToDiscard, TreeSet<String> consideredVars, List<String> allFilePaths,
+                                               String missingValuePlaceHolder)
     {
         //default padding length is the length of the variable with the longest name
         int defaultPaddingLength = Utils.defaultPaddingLength(consideredVars);
@@ -1013,7 +1051,7 @@ public class Launcher
                     lineValues = tsLineValuesMap.get(timeStampMinutes); // returns null if there is no such a key
                     if(lineValues == null) {
                         lineValues = new String[consideredVars.size() + 1]; // with the size equal to number of vars + 1 (+1 for time stamp)
-                        Arrays.fill(lineValues, "-");
+                        Arrays.fill(lineValues, missingValuePlaceHolder);
 
                         //add time stamp value first
                         //which will be in the index 0
@@ -1027,24 +1065,25 @@ public class Launcher
                     //handle general descriptor variables; handle weight carefully for timestamp 0
                     if(varsToDiscard.contains(variableName))
                     {
-                        //TODO do something
+                        // do nothing
                     }
-                    else if(variableName.equals("Weight") && timeStampMinutes == 0)
-                    {
-                        //TODO do something
-                    }
+                    //else if(variableName.equals("Weight") && timeStampMinutes == 0)
+                    //{
+                    //
+                    //}
                     else {
                         //get the index of variable name
                         int index = consideredVarList.indexOf(variableName) + 1; // +1 for time stamp
                         //add the variable value to the corresponding index, it will update the map values implicitly
-                        lineValues[index] = variableValue;
+                        lineValues[index] = ensureNonNegativityAndGet(variableValue, missingValuePlaceHolder);
                     } // else
 
                 } // while
 
 
                 //explicitly remove the key == 0 and associated values, since, timestamp 0 has all variables empty
-                tsLineValuesMap.remove(0);
+                //WRONG 133919.txt in set-a has pH value at time stamp 0, do not remove the key
+                //tsLineValuesMap.remove(0);
 
 
                 //now populate the map in the form:

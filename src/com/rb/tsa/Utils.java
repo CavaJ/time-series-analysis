@@ -27,6 +27,20 @@ public class Utils
         return defaultPaddingLength + 1; // + 1 to make a space for the longest named variable
     } // defaultPaddingLength
 
+
+    public static int defaultPaddingLength(String... array)
+    {
+        int defaultPaddingLength = 0;
+        for(String var : array)
+        {
+            if(var.length() > defaultPaddingLength)
+                defaultPaddingLength = var.length();
+        } // for
+
+        return defaultPaddingLength + 1; // + 1 to make a space for the longest named variable
+    } // defaultPaddingLength
+
+
     public static String padLeftSpaces(String inputString, int length) {
         if (inputString.length() >= length) {
             return inputString;
@@ -347,6 +361,8 @@ public class Utils
             //update the var ranges
             varRanges.add(thisVar, rangesForThisVar);
         } // for
+
+        System.out.println("Read VarRanges files");
 
         return varRanges;
     } // varRanges
@@ -678,14 +694,15 @@ public class Utils
             } // for each line
         } // for each file
 
+        System.out.println("Read Outcomes files");
+
         return outcomes;
     } // outcomesFromLocalFilePaths
 
 
     //helper method to obtain general descriptors from file paths
-    public static GeneralDescriptorsRecords
-                        generalDescriptorsRecordsFromLocalFilePaths(String lineComponentDelimiter, Dataset dataset,
-                                                                    String... generalDescriptorsRecordsLocalFilePaths)
+    public static GeneralDescriptorsRecords genDescRecordsFromLocalFilePaths(String lineComponentDelimiter, Dataset dataset,
+                                                                             String... generalDescriptorsRecordsLocalFilePaths)
     {
         if(generalDescriptorsRecordsLocalFilePaths.length == 0)
             throw new RuntimeException("Please provide at least one file path for general descriptors records");
@@ -740,7 +757,10 @@ public class Utils
             } // for each line
         } // for each file
 
+
+        System.out.println("Read GeneralDescriptorsRecords files");
+
         return records;
-    } // generalDescriptorsRecordsFromLocalFilePaths
+    } // genDescRecordsFromLocalFilePaths
 
 } // class Utils
