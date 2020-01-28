@@ -8,6 +8,7 @@ import org.apache.commons.lang3.StringUtils;
 import java.io.File;
 import java.math.RoundingMode;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class Launcher
 {
@@ -142,14 +143,27 @@ public class Launcher
         allVarJoinFilePaths.addAll(setCVarJoinFilePaths);
 
 
+        long start = System.currentTimeMillis();
+        float fMissingValuePlaceHolder = -2.0f;
+        List<MultivariateTimeSeries> mtses = new ArrayList<>();
 
         //obtain multivariate time series from each file
         for(String filePath : allVarJoinFilePaths)
         {
-            MultivariateTimeSeries mtse = MultivariateTimeSeries.fromFile(filePath, ",");
-            println(mtse.toVerticalString());
+            MultivariateTimeSeries mtse
+                    = MultivariateTimeSeries.fromFile(Dataset.PhysioNet, filePath, ",", fMissingValuePlaceHolder);
+            //println(mtse.toVerticalString());
+
+            mtses.add(mtse);
             break;
         } // for
+
+        Imputations imputations = Imputations.getInstance();
+        List<MultivariateTimeSeries> imtses = imputations.impute(mtses, Imputations.ImputeMethod.NORMAL_VALUE_IMPUTATION, varRanges, fMissingValuePlaceHolder);
+        for(MultivariateTimeSeries imtse : imtses)
+            println(imtse.toVerticalString());
+        long end = System.currentTimeMillis();
+        println("It took " + TimeUnit.MILLISECONDS.toSeconds(end-start) + " seconds for imputation");
 
 
 

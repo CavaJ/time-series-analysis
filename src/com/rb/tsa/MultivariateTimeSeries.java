@@ -3,13 +3,24 @@ package com.rb.tsa;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.io.Serializable;
 import java.util.*;
 
 //class to handle multivariate time series of patient files
-public class MultivariateTimeSeries
+public class MultivariateTimeSeries implements Serializable, Comparable<MultivariateTimeSeries>
 {
+    //dataset of this multivariate time series
+    private Dataset dataset;
+
     //unique record id
     private int recordID;
+
+    //time stamps hash to make this mtse comparable to other with same recordID and dataset (especially during embedding)
+    private int tssHash;
+
+
+    //TODO implement masking for multivariate time series
+
 
     //horizontality and verticality are determined by the positioning of values of each variable
     //main data structure to hold the time series; ts -> (var -> varValue)
@@ -26,7 +37,7 @@ public class MultivariateTimeSeries
 
     //constructor
     //will take a record id, tree set of time stamps, tree set of var names, and list of value arrays of corresponding vars
-    public MultivariateTimeSeries(int recordID, List<Integer> timeStamps, List<String> varNames, List<List<Float>> varValuesInTsOrder)
+    public MultivariateTimeSeries(Dataset dataset, int recordID, List<Integer> timeStamps, List<String> varNames, List<List<Float>> varValuesInTsOrder)
     {
         //prechecks
         if(timeStamps.isEmpty() || varNames.isEmpty() || varValuesInTsOrder.isEmpty() || atLeastOneEmpty(varValuesInTsOrder))
@@ -42,8 +53,12 @@ public class MultivariateTimeSeries
         } // for
 
 
+        //assign dataset
+        this.dataset = dataset;
         //assign record id
         this.recordID = recordID;
+        //assign tss hash //TODO this can be problematic when some timestamps are removed from the data structure
+        this.tssHash = timeStamps.hashCode();
 
 
         //convert varNames to array
@@ -152,9 +167,11 @@ public class MultivariateTimeSeries
         for(Integer ts : verticalData.keySet())
         {
             sb.append(Utils.padLeftSpaces(ts + "", defaultPaddingLength));
-            for(String varName : verticalData.get(ts).keySet())
+            TreeMap<String, Float> varVarValuesMap = verticalData.get(ts);
+
+            for(String varName : varVarValuesMap.keySet())
             {
-                sb.append(",").append(Utils.padLeftSpaces(verticalData.get(ts).get(varName).toString(), defaultPaddingLength));
+                sb.append(",").append(Utils.padLeftSpaces(varVarValuesMap.get(varName).toString(), defaultPaddingLength));
             } // for
             sb.append("\n");
         } // for
@@ -163,8 +180,153 @@ public class MultivariateTimeSeries
     } // toVerticalString
 
 
-    //TODO implement toHorizontalString method
+    //toHorizontalString method
+    public String toHorizontalString()
+    {
+        //default padding for vars
+        int defaultPaddingLengthForVars = Utils.defaultPaddingLength(horizontalData.keySet());
 
+        List<Integer> timeStamps = new ArrayList<>(verticalData.keySet());
+        String[] stringTimeStamps = new String[timeStamps.size()];
+        for(int index = 0; index < stringTimeStamps.length; index ++) stringTimeStamps[index] = "tsm: " + timeStamps.get(index);
+        int defaultPaddingLengthForTimestamps = Utils.defaultPaddingLength(stringTimeStamps);
+
+        //choose the padding length which is bigger
+        int finalPaddingLength = Math.max(defaultPaddingLengthForTimestamps, defaultPaddingLengthForVars);
+
+        String[] paddedStringTimeStamps = new String[stringTimeStamps.length];
+        for(int index = 0; index < paddedStringTimeStamps.length; index ++)
+            paddedStringTimeStamps[index] = Utils.padLeftSpaces(stringTimeStamps[index], finalPaddingLength);
+
+        //update string builder with initial empty padded string
+        StringBuilder sb = new StringBuilder(Utils.padLeftSpaces("", defaultPaddingLengthForVars + 1)); //+1 for considering a space for comma
+        //append time stamps for the header line
+        sb.append(String.join(",", paddedStringTimeStamps));
+        //append new line
+        sb.append("\n");
+
+        //now print values for each var
+        for(String var : horizontalData.keySet())
+        {
+            sb.append(Utils.padLeftSpaces(var, defaultPaddingLengthForVars));
+            TreeMap<Integer, Float> tsVarValuesMap = horizontalData.get(var);
+
+            for(Integer ts : tsVarValuesMap.keySet())
+            {
+                sb.append(",").append(Utils.padLeftSpaces(tsVarValuesMap.get(ts) + "", finalPaddingLength));
+            } // for
+
+            //new line
+            sb.append("\n");
+        } // for
+
+        return sb.toString();
+    } // toHorizontalString
+
+
+    //toString method executes toVerticalString method
+    public String toString()
+    {
+        return toVerticalString();
+    } // toString
+
+    //TODO implement toCSVString method without any padding but similar to toVerticalString()
+
+
+    //get method for vars
+    public List<String> getVars()
+    {
+        return new ArrayList<>(horizontalData.keySet());
+    } // getVars
+
+    //get method for time stamps
+    public List<Integer> getTimeStamps()
+    {
+        return new ArrayList<>(verticalData.keySet());
+    } // getTimeStamps
+
+
+    //get variable its ts ordered values as a map
+    public Map<String, List<Float>> getVarValuesInTsOrder()
+    {
+        HashMap<String, List<Float>> varValuesMapInTsOrder = new HashMap<>();
+        for(String var : horizontalData.keySet())
+        {
+            TreeMap<Integer, Float> tsVarValues = horizontalData.get(var);
+            List<Float> thisVarValuesInTsOrder = new ArrayList<>();
+            for(Integer ts : tsVarValues.keySet())
+                thisVarValuesInTsOrder.add(tsVarValues.get(ts));
+
+            varValuesMapInTsOrder.put(var, thisVarValuesInTsOrder);
+        } // for
+
+        return varValuesMapInTsOrder;
+    } // getVarValuesInTsOrder
+
+
+    //set method for setting var values in ts order
+    public void setVarValuesInTsOrder(Map<String, List<Float>> newVarValues)
+    {
+        for(String var : newVarValues.keySet())
+        {
+            List<Float> newValuesOfThisVar = newVarValues.get(var);
+
+            //map associated with this var in horizontal data
+            TreeMap<Integer, Float> tsVarValues = horizontalData.get(var);
+            Integer[] tss = tsVarValues.keySet().toArray(new Integer[]{});
+
+            if(tss.length != newValuesOfThisVar.size())
+                throw new RuntimeException("number of timestamps does not agree");
+
+            for(int tsIndex = 0; tsIndex < tss.length; tsIndex ++)
+            {
+                //update the internal map of horizontal data, tsVarValues references it
+                tsVarValues.put(tss[tsIndex], newValuesOfThisVar.get(tsIndex));
+            } // for each ts
+
+        } // for each var
+
+        //horizontal data are updated, so update vertical data too
+        updateVerticalData();
+    } // setVarValuesInTsOrder
+
+
+    //getter method for record id
+    public int getRecordID() {
+        return recordID;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MultivariateTimeSeries that = (MultivariateTimeSeries) o;
+        return  dataset == that.dataset
+                && recordID == that.recordID
+                && tssHash == that.tssHash;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        //we might have time series of the same record id with possibly and different time stamps
+        return Objects.hash(dataset, recordID, tssHash); //getVars().size()); mtses having the same vars can be compared
+    }
+
+
+    //compareTo method for natural ordering
+    public int compareTo(MultivariateTimeSeries other)
+    {
+        int result = dataset.compareTo(other.dataset);
+        if(result == 0)
+        {
+            result = Integer.compare(recordID, other.recordID);
+            if(result == 0)
+                result = Integer.compare(tssHash, other.tssHash);
+        } // if
+
+        return result;
+    } // compareTo
 
 
     //helper method to create MultivariateTimeSeries from file
@@ -172,7 +334,7 @@ public class MultivariateTimeSeries
     //    var1 var2
     //ts1
     //ts2
-    public static MultivariateTimeSeries fromFile(String localFilePath, String lineComponentDelimiter)
+    public static MultivariateTimeSeries fromFile(Dataset dataset, String localFilePath, String lineComponentDelimiter, float floatMissingValuePlaceHolder)
     {
         //all files are actually record ids
         String fileName = Utils.fileNameFromPath(localFilePath);
@@ -231,13 +393,39 @@ public class MultivariateTimeSeries
                 if(Utils.isFloat(thisLineComponents[varIndex]))
                     valuesInTsOrder.add(Float.valueOf(thisLineComponents[varIndex]));
                 else
-                    valuesInTsOrder.add(-1.0f);
+                    valuesInTsOrder.add(floatMissingValuePlaceHolder);
+                                   // .add(-1.0f);
                                    //.add(Float.POSITIVE_INFINITY);
             } // for each line component
 
         } // for each line
 
-        return new MultivariateTimeSeries(recordID, timeStamps, varNames, new ArrayList<>(varVarValuesMap.values()));
+        return new MultivariateTimeSeries(dataset, recordID, timeStamps, varNames, new ArrayList<>(varVarValuesMap.values()));
     } // fromFile
+
+
+    //get var values in ts order
+    private List<List<Float>> listOfVarValuesInTsOrder()
+    {
+        List<List<Float>> varValuesInTsOrder = new ArrayList<>();
+        for(String var : horizontalData.keySet())
+        {
+            TreeMap<Integer, Float> tsVarValues = horizontalData.get(var);
+            List<Float> thisVarValuesInTsOrder = new ArrayList<>();
+            for(Integer ts : tsVarValues.keySet())
+                thisVarValuesInTsOrder.add(tsVarValues.get(ts));
+
+            varValuesInTsOrder.add(thisVarValuesInTsOrder);
+        } // for
+
+        return varValuesInTsOrder;
+    } // listOfVarValuesInTsOrder
+
+
+    //helper method to copy this multivariate time series
+    public MultivariateTimeSeries deepCopy()
+    {
+        return new MultivariateTimeSeries(dataset, getRecordID(), getTimeStamps(), getVars(), listOfVarValuesInTsOrder());
+    } // deepCopy
 
 } // class MultivariateTimeSeries
