@@ -3,11 +3,14 @@ package com.rb.tsa;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.io.Serializable;
 import java.util.*;
 
 //class to handle multivariate time series of patient files
-public class MultivariateTimeSeries implements Serializable, Comparable<MultivariateTimeSeries>
+public class MTSE implements Serializable, Comparable<MTSE>
 {
     //dataset of this multivariate time series
     private Dataset dataset;
@@ -17,9 +20,6 @@ public class MultivariateTimeSeries implements Serializable, Comparable<Multivar
 
     //time stamps hash to make this mtse comparable to other with same recordID and dataset (especially during embedding)
     private int tssHash;
-
-
-    //TODO implement masking for multivariate time series
 
 
     //horizontality and verticality are determined by the positioning of values of each variable
@@ -35,9 +35,25 @@ public class MultivariateTimeSeries implements Serializable, Comparable<Multivar
     //var2
     TreeMap<String, TreeMap<Integer, Float>> horizontalData; // gives us a chance to increase, decrease, change variables
 
+
+    //vertical masking for this multivariate time series
+    //if variable d is observed at time stamp t, then masking[t][d] = 1, otherwise masking[t][d] = 0
+    //    var1 var2 var3
+    //ts1
+    //ts2
+    TreeMap<Integer, TreeMap<String, Integer>> verticalMaskingVector; // ts -> (var -> maskingValue)
+
+    //horizontal masking vector
+    //if variable d is observed at time stamp t, then masking[d][t] = 1, otherwise masking[d][t] = 0
+    //     ts1 ts2
+    //var1
+    //var2
+    TreeMap<String, TreeMap<Integer, Integer>> horizontalMaskingVector; // var -> (ts -> maskingValue)
+
+
     //constructor
     //will take a record id, tree set of time stamps, tree set of var names, and list of value arrays of corresponding vars
-    public MultivariateTimeSeries(Dataset dataset, int recordID, List<Integer> timeStamps, List<String> varNames, List<List<Float>> varValuesInTsOrder)
+    public MTSE(Dataset dataset, int recordID, List<Integer> timeStamps, List<String> varNames, List<List<Float>> varValuesInTsOrder)
     {
         //prechecks
         if(timeStamps.isEmpty() || varNames.isEmpty() || varValuesInTsOrder.isEmpty() || atLeastOneEmpty(varValuesInTsOrder))
@@ -97,8 +113,114 @@ public class MultivariateTimeSeries implements Serializable, Comparable<Multivar
             verticalData.put(tsArray[tsIndex], varValueMap);
         } // for
 
-    } // MultivariateTimeSeries
 
+        //initialize vertical masking vector from vertical data
+        verticalMaskingVector = new TreeMap<>();
+        for(Integer ts : verticalData.keySet())
+        {
+            //var values in this ts
+            TreeMap<String, Float> varValuesInThisTs = verticalData.get(ts);
+
+            TreeMap<String, Integer> maskingVectorElementsForThisTs = new TreeMap<>();
+            for(String var : varValuesInThisTs.keySet())
+            {
+                //if it is non-negative the masking value is 1
+                //note that missing values are marked with negative values in each MTSe
+                if(Float.compare(varValuesInThisTs.get(var), 0.0f) >= 0)
+                    maskingVectorElementsForThisTs.put(var, 1);
+                else
+                    maskingVectorElementsForThisTs.put(var, 0);
+            } // for each var
+
+            verticalMaskingVector.put(ts, maskingVectorElementsForThisTs);
+        } // for each ts
+
+
+        //now initialize horizontal masking vector
+        horizontalMaskingVector = new TreeMap<>();
+        for(String var : horizontalData.keySet())
+        {
+            //obtain the internal map of timestamp and var values
+            TreeMap<Integer, Float> varValuesInTimeStampOrder = horizontalData.get(var);
+
+            TreeMap<Integer, Integer> maskingVectorElementsForThisVar = new TreeMap<>();
+            for(Integer ts : varValuesInTimeStampOrder.keySet())
+            {
+                //if it is non-negative the masking value is 1
+                //note that missing values are marked with negative values in each MTSe
+                if(Float.compare(varValuesInTimeStampOrder.get(ts), 0.0f) >= 0)
+                    maskingVectorElementsForThisVar.put(ts, 1);
+                else
+                    maskingVectorElementsForThisVar.put(ts, 0);
+            } // for each ts
+
+            horizontalMaskingVector.put(var, maskingVectorElementsForThisVar);
+        } // for each var
+
+    } // MTSE
+
+
+    //getter method for masking vector
+    //public TreeMap<Integer, TreeMap<String, Integer>> getVerticalMaskingVector() {
+    //    return verticalMaskingVector;
+    //}
+
+    //public TreeMap<String, TreeMap<Integer, Integer>> getHorizontalMaskingVector() {
+    //    return horizontalMaskingVector;
+    //}
+
+    //helper method to get maskings in ts order
+    public Map<String, List<Integer>> getMaskingsInTsOrder()
+    {
+        Map<String, List<Integer>> maskingsInTsOrder = new HashMap<>();
+        for(String var : horizontalMaskingVector.keySet())
+        {
+            TreeMap<Integer, Integer> tsMaskingMap = horizontalMaskingVector.get(var);
+
+            //list of maskings for this var
+            List<Integer> maskingsForThisVarInTsOrder = new ArrayList<>();
+
+            for(Integer ts : tsMaskingMap.keySet())
+            {
+                maskingsForThisVarInTsOrder.add(tsMaskingMap.get(ts));
+            } // for
+
+            maskingsInTsOrder.put(var, maskingsForThisVarInTsOrder);
+        } // for
+
+        return maskingsInTsOrder;
+    } // getMaskingsInTsOrder
+
+
+    //helper method to get values in Var order
+    //   var1 var2 var3 ...
+    //ts1
+    //ts2
+    //ts3
+    //...
+    //it will return one row in above matrix
+    public Map<Integer, List<Float>> getValuesInVarNameOrder()
+    {
+        LinkedHashMap<Integer, List<Float>> valuesInVarNameOrder = new LinkedHashMap<>();
+
+        for(Integer ts : verticalData.keySet())
+        {
+            //row of values for this ts
+            List<Float> row = new ArrayList<>();
+
+            //var_name -> value
+            //it has var name order
+            TreeMap<String, Float> varValueInThisTs = verticalData.get(ts);
+            for(String var : varValueInThisTs.keySet())
+            {
+                row.add(varValueInThisTs.get(var));
+            } // for
+
+            valuesInVarNameOrder.put(ts, row);
+        } // for
+
+        return valuesInVarNameOrder;
+    } // for
 
     //private method to update vertical data when horizontal data are updated
     private void updateVerticalData()
@@ -150,17 +272,11 @@ public class MultivariateTimeSeries implements Serializable, Comparable<Multivar
     //to vertical string method
     public String toVerticalString()
     {
-        List<String> varNames = new ArrayList<>(horizontalData.keySet());
+        StringBuilder sb = new StringBuilder(paddedVarNamesHeading());
+
+        List<String> varNames = getVars();
         varNames.add(0, "tsMinutes");
-
-        //padding length
         int defaultPaddingLength = Utils.defaultPaddingLength(varNames);
-
-        //now for each variable update string builder
-        StringBuilder sb = new StringBuilder(Utils.padLeftSpaces(varNames.get(0), defaultPaddingLength));
-        for(int index = 1; index < varNames.size(); index ++)
-            sb.append(",").append(Utils.padLeftSpaces(varNames.get(index), defaultPaddingLength));
-        sb.append("\n");
 
 
         //now for each time stamp append values
@@ -178,6 +294,52 @@ public class MultivariateTimeSeries implements Serializable, Comparable<Multivar
 
         return sb.toString();
     } // toVerticalString
+
+
+    //helper method to obtain padded var names heading
+    private String paddedVarNamesHeading()
+    {
+        List<String> varNames = getVars();
+        varNames.add(0, "tsMinutes");
+
+        //padding length
+        int defaultPaddingLength = Utils.defaultPaddingLength(varNames);
+
+        //now for each variable update string builder
+        StringBuilder sb = new StringBuilder(Utils.padLeftSpaces(varNames.get(0), defaultPaddingLength));
+        for(int index = 1; index < varNames.size(); index ++)
+            sb.append(",").append(Utils.padLeftSpaces(varNames.get(index), defaultPaddingLength));
+        sb.append("\n");
+
+        return sb.toString();
+    } // paddedVarNamesHeading
+
+
+    //helper method to print the masking vector string
+    public String toVerticalMaskingVectorString()
+    {
+        StringBuilder sb = new StringBuilder(paddedVarNamesHeading());
+
+        List<String> varNames = getVars();
+        varNames.add(0, "tsMinutes");
+        int defaultPaddingLength = Utils.defaultPaddingLength(varNames);
+
+
+        //now for each time stamp append values
+        for(Integer ts : verticalMaskingVector.keySet())
+        {
+            sb.append(Utils.padLeftSpaces(ts + "", defaultPaddingLength));
+            TreeMap<String, Integer> varMaskingsMap = verticalMaskingVector.get(ts);
+
+            for(String varName : varMaskingsMap.keySet())
+            {
+                sb.append(",").append(Utils.padLeftSpaces(varMaskingsMap.get(varName).toString(), defaultPaddingLength));
+            } // for
+            sb.append("\n");
+        } // for
+
+        return sb.toString();
+    } // toVerticalMaskingVectorString
 
 
     //toHorizontalString method
@@ -230,7 +392,60 @@ public class MultivariateTimeSeries implements Serializable, Comparable<Multivar
         return toVerticalString();
     } // toString
 
-    //TODO implement toCSVString method without any padding but similar to toVerticalString()
+
+    //toCSVString method without any padding but similar to toVerticalString()
+    public String toCSVString(boolean discardTimeStamps)
+    {
+        List<String> varNames = getVars();
+        if(!discardTimeStamps) varNames.add(0, "tsMinutes");
+
+        //initialize string builder with header
+        StringBuilder sb = new StringBuilder(String.join(",", varNames));
+        sb.append("\n");
+
+
+        //now for each time stamp append values
+        for(Integer ts : verticalData.keySet())
+        {
+            if(!discardTimeStamps) sb.append(ts).append(",");
+            TreeMap<String, Float> varVarValuesMap = verticalData.get(ts);
+
+            List<String> stringValues = new ArrayList<>();
+            for(Float val : varVarValuesMap.values())
+            {
+                stringValues.add(val.toString());
+            } // for
+
+            sb.append(String.join(",", stringValues));
+            sb.append("\n");
+        } // for
+
+        return sb.toString();
+    } // toCSVString
+
+
+    //method to write mtse to file
+    public void writeToFile(String destinationDirPath, String newDirNameToPutFile, String newFileExtension, boolean writeInPaddedFormat)
+    {
+        String newFileName
+                = getRecordID() + "." + newFileExtension;
+        try
+        {
+            String newDirPath = destinationDirPath + File.separator + newDirNameToPutFile;
+            File newDir = new File(newDirPath);
+            if(!newDir.exists()) newDir.mkdir();
+
+            File newFile = new File( newDir.getAbsolutePath() + File.separator + newFileName);
+            newFile.createNewFile();
+            PrintWriter pw = new PrintWriter(newFile);
+            pw.print(writeInPaddedFormat ? toVerticalString() : toCSVString(false));
+            pw.close();
+
+            System.out.println("Wrote file => " + newFile.getAbsolutePath());
+        } catch (IOException e) {
+            e.printStackTrace();
+        } // catch
+    } // writeToFile
 
 
     //get method for vars
@@ -300,7 +515,7 @@ public class MultivariateTimeSeries implements Serializable, Comparable<Multivar
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        MultivariateTimeSeries that = (MultivariateTimeSeries) o;
+        MTSE that = (MTSE) o;
         return  dataset == that.dataset
                 && recordID == that.recordID
                 && tssHash == that.tssHash;
@@ -315,7 +530,7 @@ public class MultivariateTimeSeries implements Serializable, Comparable<Multivar
 
 
     //compareTo method for natural ordering
-    public int compareTo(MultivariateTimeSeries other)
+    public int compareTo(MTSE other)
     {
         int result = dataset.compareTo(other.dataset);
         if(result == 0)
@@ -329,12 +544,12 @@ public class MultivariateTimeSeries implements Serializable, Comparable<Multivar
     } // compareTo
 
 
-    //helper method to create MultivariateTimeSeries from file
+    //helper method to create MTSE from file
     //it will parse the file in the following format:
     //    var1 var2
     //ts1
     //ts2
-    public static MultivariateTimeSeries fromFile(Dataset dataset, String localFilePath, String lineComponentDelimiter, float floatMissingValuePlaceHolder)
+    public static MTSE fromFile(Dataset dataset, String localFilePath, String lineComponentDelimiter, float floatMissingValuePlaceHolder)
     {
         //all files are actually record ids
         String fileName = Utils.fileNameFromPath(localFilePath);
@@ -400,7 +615,7 @@ public class MultivariateTimeSeries implements Serializable, Comparable<Multivar
 
         } // for each line
 
-        return new MultivariateTimeSeries(dataset, recordID, timeStamps, varNames, new ArrayList<>(varVarValuesMap.values()));
+        return new MTSE(dataset, recordID, timeStamps, varNames, new ArrayList<>(varVarValuesMap.values()));
     } // fromFile
 
 
@@ -423,9 +638,9 @@ public class MultivariateTimeSeries implements Serializable, Comparable<Multivar
 
 
     //helper method to copy this multivariate time series
-    public MultivariateTimeSeries deepCopy()
+    public MTSE deepCopy()
     {
-        return new MultivariateTimeSeries(dataset, getRecordID(), getTimeStamps(), getVars(), listOfVarValuesInTsOrder());
+        return new MTSE(dataset, getRecordID(), getTimeStamps(), getVars(), listOfVarValuesInTsOrder());
     } // deepCopy
 
-} // class MultivariateTimeSeries
+} // class MTSE

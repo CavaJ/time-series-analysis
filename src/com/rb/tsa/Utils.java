@@ -463,6 +463,90 @@ public class Utils
 
 
 
+    //helper method to write mtses to multi-instance format:
+    //@relation physionet
+    // @attribute patient_record_id {132539,132540,132541,132543,132545,...,163037}
+    // @attribute bag relational
+    //   @attribute (NI)DiasABP numeric
+    //   @attribute (NI)MAP numeric
+    //   @attribute (NI)SysABP numeric
+    //   @attribute ALP numeric
+    //   @attribute ALT numeric
+    //   ...
+    //   @attribute pH numeric
+    // @end bag
+    // @attribute class {0,1}
+    //
+    // @data
+    // 132539,"0,59.26,79.05,119.4,116.75,394.61,506.54,2.92,27.42,2.91,156.52,1.51,0.55,11.4,141.5,23.12,30.68,87.52,4.14,2.92,2.03,139.07,40.47,150.42,190.81,19.72,96.64,37.04,7.15,1.2,119.57,12.67,83.6,7.49\n...",0
+    // ...
+    public static void writeMTSEsToMultiInstanceArffFile(Dataset dataset, List<MTSE> mtses, Outcomes outcomes, String bagName,
+                                                  String[] classLabels, String destinationDirPath, String newDirNameToPutFile)
+    {
+        if(mtses.isEmpty()) throw new RuntimeException("At lease one mtse should be provided");
+        List<String> vars = mtses.get(0).getVars();
+
+        //feedback
+        System.out.println("Generating content for multi-instance arff file...");
+
+        StringBuilder sb = new StringBuilder("@relation " + dataset.toSimpleString()).append("\n\n");
+        sb.append("@attribute ").append(bagName).append(" ")
+                .append("{").append(String.join(",", toStringCollection(outcomes.getRecordIDs()))).append("}").append("\n");
+        sb.append("@attribute bag relational").append("\n");
+        vars.forEach(s -> {
+            sb.append(" @attribute ").append(s.trim()).append(" numeric").append("\n");
+        });
+        sb.append("@end bag").append("\n");
+        sb.append("@attribute class {").append(String.join(",", classLabels)).append("}").append("\n\n");
+        sb.append("@data").append("\n");
+        for(MTSE mtse : mtses)
+        {
+            sb.append(mtse.getRecordID()).append(",").append("\"");
+            Map<Integer, List<Float>> valuesInVarNameOrder = mtse.getValuesInVarNameOrder();
+            List<String> joinedValuesInVarNameOrder = new ArrayList<>();
+            for(Integer ts : valuesInVarNameOrder.keySet())
+            {
+                //it joins all elements in the row by comma
+                joinedValuesInVarNameOrder.add(String.join(",", toStringCollection(valuesInVarNameOrder.get(ts))));
+            } // for
+            //then joins rows by \n and appends a comma, class label and new line character
+            sb.append(String.join("\\n", joinedValuesInVarNameOrder)).append("\"").append(",")
+                    .append(outcomes.get(mtse.getRecordID()).getInHospitalDeath0Or1()).append("\n");
+        } // for
+
+
+        String newFileName
+                = dataset.toSimpleString() + ".arff";
+        try
+        {
+            File dir = new File(destinationDirPath + File.separator + newDirNameToPutFile);
+            if(!dir.exists()) dir.mkdir();
+
+            File newFile = new File( dir.getAbsolutePath() + File.separator + newFileName);
+            newFile.createNewFile();
+            PrintWriter pw = new PrintWriter(newFile);
+            pw.print(sb.toString());
+            pw.close();
+
+            System.out.println("Wrote file => " + newFile.getAbsolutePath());
+        } catch (IOException e) {
+            e.printStackTrace();
+        } // catch
+    } // writeMTSEsToMultiInstanceArffFile
+
+
+    //helper method to convert Number collection to String collection
+    public static Collection<String> toStringCollection(Collection<? extends Number> collection)
+    {
+        List<String> stringReps = new ArrayList<>();
+        for(Number n : collection)
+        {
+            stringReps.add(n.toString());
+        } // for
+
+        return stringReps;
+    } // toStringCollection
+
 
     //numeric attribute range in the form of "first-last"
     public static void csv2Arff(String localFilePathString, String numericAttributeRange)
@@ -636,6 +720,49 @@ public class Utils
         else
             return input[input.length / 2];
     } // median
+
+
+    //TODO use the mean obtained from training dataset for test data set during imputation of test dataset
+    //helper method to compute the mean of variables in all given time series using masking vector
+    public static Map<String, Float> meansOfVariablesUsingMaskingVector(List<MTSE> mtses)
+    {
+        if(mtses.isEmpty()) throw new RuntimeException("At least one mtse should be provided as an argument");
+
+        HashMap<String, Float> varMeanMap = new HashMap<>();
+        //all mtses have the same vars, so get vars
+        List<String> vars = mtses.get(0).getVars();
+
+        //for each variable compute the mean
+        for(String var : vars)
+        {
+            float sumOfMaskingMultipliedByVarValueForThisVar = 0;
+            float sumOfMaskingsForThisVar = 0;
+
+            for(MTSE mtse : mtses)
+            {
+                List<Float> varValuesInTsOrderForThisVar = mtse.getVarValuesInTsOrder().get(var);
+                List<Integer> maskingsInTsOrderForThisVar = mtse.getMaskingsInTsOrder().get(var);
+
+                //if masking size and number of var values are different throw exception
+                if(varValuesInTsOrderForThisVar.size() != maskingsInTsOrderForThisVar.size())
+                    throw new RuntimeException("Masking size and number of var values should be the same");
+
+                for(int tsIndex = 0; tsIndex < varValuesInTsOrderForThisVar.size(); tsIndex ++)
+                {
+                    sumOfMaskingsForThisVar += maskingsInTsOrderForThisVar.get(tsIndex);
+                    sumOfMaskingMultipliedByVarValueForThisVar
+                            += maskingsInTsOrderForThisVar.get(tsIndex) * varValuesInTsOrderForThisVar.get(tsIndex);
+                } // for each tsIndex
+            } // for each mtse
+
+            float meanForThisVar
+                    = Utils.format("#.##", RoundingMode.HALF_UP,
+                    sumOfMaskingMultipliedByVarValueForThisVar / sumOfMaskingsForThisVar);
+            varMeanMap.put(var, meanForThisVar);
+        } // for each var
+
+        return varMeanMap;
+    } // meansOfVariablesUsingMaskingVector
 
 
     //var args to array method

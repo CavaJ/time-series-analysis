@@ -85,13 +85,13 @@ public class Launcher
 
 
         //list files in the local file path
-        List<String> setAFilePaths = Utils.listFilesFromLocalPath(setADir, false);
-        List<String> setBFilePaths = Utils.listFilesFromLocalPath(setBDir, false);
-        List<String> setCFilePaths = Utils.listFilesFromLocalPath(setCDir, false);
-
-        List<String> allFilePaths = new ArrayList<>(setAFilePaths);
-        allFilePaths.addAll(setBFilePaths);
-        allFilePaths.addAll(setCFilePaths);
+//        List<String> setAFilePaths = Utils.listFilesFromLocalPath(setADir, false);
+//        List<String> setBFilePaths = Utils.listFilesFromLocalPath(setBDir, false);
+//        List<String> setCFilePaths = Utils.listFilesFromLocalPath(setCDir, false);
+//
+//        List<String> allFilePaths = new ArrayList<>(setAFilePaths);
+//        allFilePaths.addAll(setBFilePaths);
+//        allFilePaths.addAll(setCFilePaths);
 
 
 
@@ -102,14 +102,14 @@ public class Launcher
 //            Utils.csv2Arff(localFilePath, "1-" + (consideredVars.size() + 1)); // +1 for tsMinutes
 
 
-        List<String> setAPreProFilePaths = Utils.listFilesFromLocalPath(setADir + File.separator + "prepro", false);
-        List<String> setBPreProFilePaths = Utils.listFilesFromLocalPath(setBDir + File.separator + "prepro", false);
-        List<String> setCPreProFilePaths = Utils.listFilesFromLocalPath(setCDir + File.separator + "prepro", false);
-
-        List<String> allPreProFilePaths = new ArrayList<>();
-        allPreProFilePaths.addAll(setAPreProFilePaths);
-        allPreProFilePaths.addAll(setBPreProFilePaths);
-        allPreProFilePaths.addAll(setCPreProFilePaths);
+//        List<String> setAPreProFilePaths = Utils.listFilesFromLocalPath(setADir + File.separator + "prepro", false);
+//        List<String> setBPreProFilePaths = Utils.listFilesFromLocalPath(setBDir + File.separator + "prepro", false);
+//        List<String> setCPreProFilePaths = Utils.listFilesFromLocalPath(setCDir + File.separator + "prepro", false);
+//
+//        List<String> allPreProFilePaths = new ArrayList<>();
+//        allPreProFilePaths.addAll(setAPreProFilePaths);
+//        allPreProFilePaths.addAll(setBPreProFilePaths);
+//        allPreProFilePaths.addAll(setCPreProFilePaths);
 
 
         //remove outliers depending on variable ranges
@@ -117,16 +117,16 @@ public class Launcher
                 //removeOutliers(varRanges, consideredVars, allPreProFilePaths, "", "outlier_removal");
 
 
-        List<String> setAOutlierRemovalFilePaths
-                = Utils.listFilesFromLocalPath(setADir + File.separator + "prepro" + File.separator + "outlier_removal", false);
-        List<String> setBOutlierRemovalFilePaths
-                = Utils.listFilesFromLocalPath(setBDir + File.separator + "prepro" + File.separator + "outlier_removal", false);
-        List<String> setCOutlierRemovalFilePaths
-                = Utils.listFilesFromLocalPath(setCDir + File.separator + "prepro" + File.separator + "outlier_removal", false);
-        List<String> allOutlierRemovalFilePaths = new ArrayList<>();
-        allOutlierRemovalFilePaths.addAll(setAOutlierRemovalFilePaths);
-        allOutlierRemovalFilePaths.addAll(setBOutlierRemovalFilePaths);
-        allOutlierRemovalFilePaths.addAll(setCOutlierRemovalFilePaths);
+//        List<String> setAOutlierRemovalFilePaths
+//                = Utils.listFilesFromLocalPath(setADir + File.separator + "prepro" + File.separator + "outlier_removal", false);
+//        List<String> setBOutlierRemovalFilePaths
+//                = Utils.listFilesFromLocalPath(setBDir + File.separator + "prepro" + File.separator + "outlier_removal", false);
+//        List<String> setCOutlierRemovalFilePaths
+//                = Utils.listFilesFromLocalPath(setCDir + File.separator + "prepro" + File.separator + "outlier_removal", false);
+//        List<String> allOutlierRemovalFilePaths = new ArrayList<>();
+//        allOutlierRemovalFilePaths.addAll(setAOutlierRemovalFilePaths);
+//        allOutlierRemovalFilePaths.addAll(setBOutlierRemovalFilePaths);
+//        allOutlierRemovalFilePaths.addAll(setCOutlierRemovalFilePaths);
 
 
         //combineVars(consideredVars, allPreProFilePaths, "", BloodPressurePreference.PreferInvasive);
@@ -134,37 +134,78 @@ public class Launcher
         //    System.out.print("\"" + varName + "\", ");
 
 
-        List<String> setAVarJoinFilePaths = Utils.listFilesFromLocalPath(setADir + File.separator + "prepro" + File.separator + "varJoin", false);
-        List<String> setBVarJoinFilePaths = Utils.listFilesFromLocalPath(setBDir + File.separator + "prepro" + File.separator + "varJoin", false);
-        List<String> setCVarJoinFilePaths = Utils.listFilesFromLocalPath(setCDir + File.separator + "prepro" + File.separator + "varJoin", false);
-        List<String> allVarJoinFilePaths = new ArrayList<>();
-        allVarJoinFilePaths.addAll(setAVarJoinFilePaths);
-        allVarJoinFilePaths.addAll(setBVarJoinFilePaths);
-        allVarJoinFilePaths.addAll(setCVarJoinFilePaths);
+//        List<String> setAVarJoinFilePaths = Utils.listFilesFromLocalPath(setADir + File.separator + "prepro" + File.separator + "varJoin", false);
+//        List<String> setBVarJoinFilePaths = Utils.listFilesFromLocalPath(setBDir + File.separator + "prepro" + File.separator + "varJoin", false);
+//        List<String> setCVarJoinFilePaths = Utils.listFilesFromLocalPath(setCDir + File.separator + "prepro" + File.separator + "varJoin", false);
+//        List<String> allVarJoinFilePaths = new ArrayList<>();
+//        allVarJoinFilePaths.addAll(setAVarJoinFilePaths);
+//        allVarJoinFilePaths.addAll(setBVarJoinFilePaths);
+//        allVarJoinFilePaths.addAll(setCVarJoinFilePaths);
+
+
+//        long start = System.currentTimeMillis();
+//        float fMissingValuePlaceHolder = -2.0f;
+//        List<MTSE> mtses = new ArrayList<>();
+//
+//        //obtain multivariate time series from each file
+//        for(String filePath : allVarJoinFilePaths)
+//        {
+//            MTSE mtse
+//                    = MTSE.fromFile(Dataset.PhysioNet, filePath, ",", fMissingValuePlaceHolder);
+//            //println(mtse.toVerticalString());
+//
+//            mtses.add(mtse);
+//            //break;
+//        } // for
+//
+//        Imputations imputations = Imputations.getInstance();
+//        List<MTSE> imtses
+//                = imputations.impute(mtses, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, varRanges, fMissingValuePlaceHolder);
+//        for(MTSE imtse : imtses)
+//        {
+//            //println(imtse.toVerticalString());
+//            //println(imtse.toVerticalMaskingVectorString());
+//            //println(imtse.toCSVString(true));
+//            //break;
+//
+//            //imtse.writeToFile(DATA_FOLDER, "mean_imputed_set-", "csv", true);
+//        } // for
+//
+//        long end = System.currentTimeMillis();
+//        println("It took " + TimeUnit.MILLISECONDS.toSeconds(end-start) + " seconds for imputation");
+
+
+
+        //imputed file paths
+        List<String> setAMeanImputedFilePaths = Utils.listFilesFromLocalPath(DATA_FOLDER + File.separator + "mean_imputed_set-a", false);
+        List<String> setBMeanImputedFilePaths = Utils.listFilesFromLocalPath(DATA_FOLDER + File.separator + "mean_imputed_set-b", false);
+        List<String> setCMeanImputedFilePaths = Utils.listFilesFromLocalPath(DATA_FOLDER + File.separator + "mean_imputed_set-c", false);
+        List<String> allMeanImputedFilePaths = new ArrayList<>();
+        allMeanImputedFilePaths.addAll(setAMeanImputedFilePaths);
+        allMeanImputedFilePaths.addAll(setBMeanImputedFilePaths);
+        allMeanImputedFilePaths.addAll(setCMeanImputedFilePaths);
 
 
         long start = System.currentTimeMillis();
         float fMissingValuePlaceHolder = -2.0f;
-        List<MultivariateTimeSeries> mtses = new ArrayList<>();
-
-        //obtain multivariate time series from each file
-        for(String filePath : allVarJoinFilePaths)
+        List<MTSE> mtses = new ArrayList<>();
+        for(String filePath : allMeanImputedFilePaths)
         {
-            MultivariateTimeSeries mtse
-                    = MultivariateTimeSeries.fromFile(Dataset.PhysioNet, filePath, ",", fMissingValuePlaceHolder);
-            //println(mtse.toVerticalString());
-
+            MTSE mtse = MTSE.fromFile(Dataset.PhysioNet, filePath, ",", fMissingValuePlaceHolder);
             mtses.add(mtse);
-            break;
+
+            //println(mtse);
+            //break;
         } // for
-
-        Imputations imputations = Imputations.getInstance();
-        List<MultivariateTimeSeries> imtses = imputations.impute(mtses, Imputations.ImputeMethod.NORMAL_VALUE_IMPUTATION, varRanges, fMissingValuePlaceHolder);
-        for(MultivariateTimeSeries imtse : imtses)
-            println(imtse.toVerticalString());
         long end = System.currentTimeMillis();
-        println("It took " + TimeUnit.MILLISECONDS.toSeconds(end-start) + " seconds for imputation");
-
+        println("It took " + TimeUnit.MILLISECONDS.toSeconds(end-start) + " to create mtses from files");
+        //println(outcomes);
+        //println(outcomes.countInHospitalDeathPositive(0, 4000)
+        //        + " <=> " + outcomes.countInHospitalDeathNegative(0, 4000)
+        //        + " <=> " + outcomes.countInHospitalDeathPositive(0, 4000) / (outcomes.size() * 1.0f));
+        //println(outcomes.getRecordIDs().toString());
+        Utils.writeMTSEsToMultiInstanceArffFile(Dataset.PhysioNet, mtses, outcomes,
+                "patient_record_id", new String[]{"0", "1"}, DATA_FOLDER, "multi_instance_arff");
 
 
         //for(String localFilePath : allVarJoinFilePaths)
@@ -185,7 +226,9 @@ public class Launcher
 
         //TODO complete the generation of own hand-engineered file for outlier removal
         //TODO remove outliers by methodological approach
-        //TODO handle empty variables, empty files and missing data
+        //TODO handle empty variables, empty files and missing data (some other imputation methods can also be implemented)
+        //TODO load multi-instance arff to weka, split first 4000 bags for training and the next 4000 for testing
+        //TODO you have not performed the mean imputation correctly: calculate mean from set-a and apply for both set-a, set-b and set-c as stated on GRU-D paper
 
 
         //System.out.println("Number of different variables in PhysioNet dataset (after pre_processing): " + differentVariableNames.size());

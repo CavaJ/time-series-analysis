@@ -1,10 +1,7 @@
 package com.rb.tsa;
 
 import java.io.Serializable;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 //class to hold all outcomes from all different files
 public class Outcomes implements Serializable, Comparable<Outcomes>
@@ -67,6 +64,49 @@ public class Outcomes implements Serializable, Comparable<Outcomes>
     }
 
 
+    public int size()
+    {
+        return outcomes.size();
+    }
+
+
+    public int countInHospitalDeathPositive()
+    {
+        int count = 0;
+        for(Outcome outcome : outcomes.values())
+        {
+            count += outcome.getInHospitalDeath0Or1();
+        } // for
+
+        return count;
+    } // countInHospitalDeathPositive
+
+    public int countInHospitalDeathNegative()
+    {
+        return outcomes.size() - countInHospitalDeathPositive();
+    } // countInHospitalDeathPositive
+
+
+    //to count between different files, for example the first 4000 files belong to set-a, the next set-b and the next set-c
+    public int countInHospitalDeathPositive(int startIndexInclusive, int endIndexExclusive)
+    {
+        int count = 0;
+        List<Outcome> startEndOutcomes = new ArrayList<>(outcomes.values()).subList(startIndexInclusive, endIndexExclusive);
+        for(Outcome outcome : startEndOutcomes)
+        {
+            count += outcome.getInHospitalDeath0Or1();
+        } // for
+
+        return count;
+    } // countInHospitalDeathPositive
+
+    public int countInHospitalDeathNegative(int startIndexInclusive, int endIndexExclusive)
+    {
+        List<Outcome> startEndOutcomes = new ArrayList<>(outcomes.values()).subList(startIndexInclusive, endIndexExclusive);
+        return startEndOutcomes.size() - countInHospitalDeathPositive(startIndexInclusive, endIndexExclusive);
+    } // countInHospitalDeathNegative
+
+
     //get the dataset this "outcomes" belongs to
     public Dataset getDataset() {
         return dataset;
@@ -98,9 +138,11 @@ public class Outcomes implements Serializable, Comparable<Outcomes>
     {
         StringBuilder sb = new StringBuilder();
 
+        int count = 0;
         for(Outcome outcome : outcomes.values())
         {
-            sb.append(outcome).append("\n");
+            count ++;
+            sb.append(count).append(" -> ").append(outcome).append("\n");
         } // for
 
         return sb.toString();
