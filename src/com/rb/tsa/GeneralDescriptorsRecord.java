@@ -1,6 +1,5 @@
 package com.rb.tsa;
 
-import weka.Run;
 
 import java.io.Serializable;
 import java.util.Objects;

@@ -1,14 +1,28 @@
 package com.rb.tsa;
 
 
-
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import weka.classifiers.Classifier;
+import weka.classifiers.Evaluation;
+import weka.classifiers.bayes.BayesianLogisticRegression;
+import weka.classifiers.bayes.NaiveBayes;
+import weka.classifiers.evaluation.ThresholdCurve;
+import weka.classifiers.functions.Logistic;
+import weka.classifiers.functions.MultilayerPerceptron;
+import weka.classifiers.mi.MIBoost;
+import weka.classifiers.mi.MILR;
+import weka.classifiers.trees.RandomForest;
+import weka.core.Instances;
+import weka.core.converters.ConverterUtils;
+import weka.gui.visualize.PlotData2D;
+import weka.gui.visualize.ThresholdVisualizePanel;
 
+import java.awt.*;
 import java.io.File;
 import java.math.RoundingMode;
+import java.util.List;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 public class Launcher
 {
@@ -141,8 +155,8 @@ public class Launcher
 //        allVarJoinFilePaths.addAll(setAVarJoinFilePaths);
 //        allVarJoinFilePaths.addAll(setBVarJoinFilePaths);
 //        allVarJoinFilePaths.addAll(setCVarJoinFilePaths);
-
-
+//
+//
 //        long start = System.currentTimeMillis();
 //        float fMissingValuePlaceHolder = -2.0f;
 //        List<MTSE> mtses = new ArrayList<>();
@@ -160,19 +174,28 @@ public class Launcher
 //
 //        Imputations imputations = Imputations.getInstance();
 //        List<MTSE> imtses
-//                = imputations.impute(mtses, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, varRanges, fMissingValuePlaceHolder);
-//        for(MTSE imtse : imtses)
+//                = imputations.impute(mtses, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION,
+//                new int[]{0, setAVarJoinFilePaths.size()}, varRanges, fMissingValuePlaceHolder);
+//        for(int index = 0; index < imtses.size(); index ++)
 //        {
+//            MTSE imtse = imtses.get(index);
 //            //println(imtse.toVerticalString());
 //            //println(imtse.toVerticalMaskingVectorString());
 //            //println(imtse.toCSVString(true));
 //            //break;
 //
-//            //imtse.writeToFile(DATA_FOLDER, "mean_imputed_set-", "csv", true);
+//            if(index < setAVarJoinFilePaths.size())
+//                imtse.writeToFile(DATA_FOLDER, "mean_imputed_set-a", "csv", true);
+//            else if(index < setAVarJoinFilePaths.size() + setBVarJoinFilePaths.size())
+//                imtse.writeToFile(DATA_FOLDER, "mean_imputed_set-b", "csv", true);
+//            else
+//                imtse.writeToFile(DATA_FOLDER, "mean_imputed_set-c", "csv", true);
 //        } // for
 //
 //        long end = System.currentTimeMillis();
 //        println("It took " + TimeUnit.MILLISECONDS.toSeconds(end-start) + " seconds for imputation");
+
+
 
 
 
@@ -184,28 +207,130 @@ public class Launcher
         allMeanImputedFilePaths.addAll(setAMeanImputedFilePaths);
         allMeanImputedFilePaths.addAll(setBMeanImputedFilePaths);
         allMeanImputedFilePaths.addAll(setCMeanImputedFilePaths);
+//
+//
+//        long start = System.currentTimeMillis();
+//        float fMissingValuePlaceHolder = -2.0f;
+//        List<MTSE> mtses = new ArrayList<>();
+//        for(String filePath : allMeanImputedFilePaths)
+//        {
+//            MTSE mtse = MTSE.fromFile(Dataset.PhysioNet, filePath, ",", fMissingValuePlaceHolder);
+//            mtses.add(mtse);
+//
+//            //println(mtse);
+//            //break;
+//        } // for
+//        long end = System.currentTimeMillis();
+//        println("It took " + TimeUnit.MILLISECONDS.toSeconds(end-start) + " to create mtses from files");
+//        //println(outcomes);
+//        //println(outcomes.countInHospitalDeathPositive(0, 4000)
+//        //        + " <=> " + outcomes.countInHospitalDeathNegative(0, 4000)
+//        //        + " <=> " + outcomes.countInHospitalDeathPositive(0, 4000) / (outcomes.size() * 1.0f));
+//        //println("Positive: " + outcomes.countInHospitalDeathPositive() + " and Negative: " + outcomes.countInHospitalDeathNegative());
+//        //println(outcomes.getRecordIDs().toString());
+//        Utils.writeMTSEsToMultiInstanceArffFile(Dataset.PhysioNet, mtses, outcomes,
+//                "patient_record_id", new String[]{"1", "0"}, DATA_FOLDER, "multi_instance_arff");
+//        println("Class imbalance for set-a => " + outcomes.classImbalanceInHospitalDeath(0, 4000));
+//        println("Class imbalance for set-b => " + outcomes.classImbalanceInHospitalDeath(4000, 8000));
+//        println("Class imbalance for set-c => " + outcomes.classImbalanceInHospitalDeath(8000, 12000));
+//        println("Class imbalance of the whole dataset => " + outcomes.classImbalanceInHospitalDeath());
 
 
-        long start = System.currentTimeMillis();
-        float fMissingValuePlaceHolder = -2.0f;
-        List<MTSE> mtses = new ArrayList<>();
-        for(String filePath : allMeanImputedFilePaths)
+        try
         {
-            MTSE mtse = MTSE.fromFile(Dataset.PhysioNet, filePath, ",", fMissingValuePlaceHolder);
-            mtses.add(mtse);
+            ConverterUtils.DataSource source
+                    = new ConverterUtils.DataSource(DATA_FOLDER + File.separator + "multi_instance_arff" + File.separator + "physionet_dataset.arff");
+            Instances data = source.getDataSet();
+            // setting class attribute if the data format does not provide this information
+            // For example, the XRFF format saves the class attribute information as well
+            if (data.classIndex() == -1)
+                data.setClassIndex(data.numAttributes() - 1);
 
-            //println(mtse);
-            //break;
-        } // for
-        long end = System.currentTimeMillis();
-        println("It took " + TimeUnit.MILLISECONDS.toSeconds(end-start) + " to create mtses from files");
-        //println(outcomes);
-        //println(outcomes.countInHospitalDeathPositive(0, 4000)
-        //        + " <=> " + outcomes.countInHospitalDeathNegative(0, 4000)
-        //        + " <=> " + outcomes.countInHospitalDeathPositive(0, 4000) / (outcomes.size() * 1.0f));
-        //println(outcomes.getRecordIDs().toString());
-        Utils.writeMTSEsToMultiInstanceArffFile(Dataset.PhysioNet, mtses, outcomes,
-                "patient_record_id", new String[]{"0", "1"}, DATA_FOLDER, "multi_instance_arff");
+            Instances train = new Instances(data, 0, setAMeanImputedFilePaths.size());
+            Instances test = new Instances(data, setAMeanImputedFilePaths.size(), setBMeanImputedFilePaths.size());
+
+            //println(train.numInstances());
+            //println(test.numInstances());
+            //println(train.toString());
+            //println(Version.VERSION);
+            //println(data.toSummaryString());
+
+
+            // train classifier
+            //MIWrapper miw = new MIWrapper();
+            //miw.setClassifier(new RandomForest());
+            //Classifier cls = miw;
+                            // = new MIBoost();
+                            // = new MILR();
+
+            //MILR mil = new MILR();
+            //-A [0|1|2]
+            //  Defines the type of algorithm:
+            //   0. standard MI assumption
+            //   1. collective MI assumption, arithmetic mean for posteriors
+            //   2. collective MI assumption, geometric mean for posteriors
+            //String[] options = weka.core.Utils.splitOptions("-A 0");
+            //mil.setOptions(options);
+            MIBoost mil = new MIBoost(); // TODO test BayesianLogicticRegression
+            mil.setClassifier(new BayesianLogisticRegression()); //new Logistic()); //new MultilayerPerceptron()); //new NaiveBayes()); //not good NaiveBayes; //(new RandomForest());
+            //mil.setOptions(weka.core.Utils.splitOptions("-R 10"));
+            Classifier cls = mil;
+
+
+            cls.buildClassifier(train);
+            // evaluate the classifier and print some statistics
+            Evaluation eval = new Evaluation(train);
+            eval.evaluateModel(cls, test);
+            //System.out.println(eval.toSummaryString("\nResults\n======\n", false));
+            println(eval.toSummaryString());
+            //println(eval.toCumulativeMarginDistributionString());
+            println(eval.toMatrixString());
+            //println(eval.toClassDetailsString());
+            //positive class is at index 0
+            PredictivePerformanceEvaluator predEval
+                    = new PredictivePerformanceEvaluator(eval.numTruePositives(0), eval.numFalseNegatives(0),
+                    eval.numFalsePositives(0), eval.numTrueNegatives(0), new String[]{"1", "0"});
+            println(predEval.confusionMatrix());
+
+
+            // generate curve
+            ThresholdCurve tc = new ThresholdCurve();
+            int classIndex = 0;
+            Instances result = tc.getCurve(eval.predictions(), classIndex);
+
+            // plot curve
+            ThresholdVisualizePanel vmc = new ThresholdVisualizePanel();
+            vmc.setROCString("(Area under ROC = " +
+                    weka.core.Utils.doubleToString(tc.getROCArea(result), 4) + ")");
+            vmc.setName(result.relationName());
+            PlotData2D tempd = new PlotData2D(result);
+            tempd.setPlotName(result.relationName());
+            tempd.addInstanceNumberAttribute();
+            // specify which points are connected
+            boolean[] cp = new boolean[result.numInstances()];
+            for (int n = 1; n < cp.length; n++)
+                cp[n] = true;
+            tempd.setConnectPoints(cp);
+            // add plot
+            vmc.addPlot(tempd);
+
+            // display curve
+            String plotName = vmc.getName();
+            final javax.swing.JFrame jf =
+                    new javax.swing.JFrame("Weka Classifier Visualize: "+plotName);
+            jf.setSize(500,400);
+            jf.getContentPane().setLayout(new BorderLayout());
+            jf.getContentPane().add(vmc, BorderLayout.CENTER);
+            jf.addWindowListener(new java.awt.event.WindowAdapter() {
+                public void windowClosing(java.awt.event.WindowEvent e) {
+                    jf.dispose();
+                }
+            });
+            jf.setVisible(true);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
 
         //for(String localFilePath : allVarJoinFilePaths)
@@ -228,7 +353,6 @@ public class Launcher
         //TODO remove outliers by methodological approach
         //TODO handle empty variables, empty files and missing data (some other imputation methods can also be implemented)
         //TODO load multi-instance arff to weka, split first 4000 bags for training and the next 4000 for testing
-        //TODO you have not performed the mean imputation correctly: calculate mean from set-a and apply for both set-a, set-b and set-c as stated on GRU-D paper
 
 
         //System.out.println("Number of different variables in PhysioNet dataset (after pre_processing): " + differentVariableNames.size());

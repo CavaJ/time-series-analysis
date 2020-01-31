@@ -598,7 +598,8 @@ public class Utils
                 // load CSV
                 CSVLoader loader = new CSVLoader();
                 loader.setSource(localFile);
-                loader.setNumericAttributes(numericAttributeRange); // forces all attributed to be set numeric, argument should be "first-last"
+                //below line not working with weka version 3.7.0
+                //loader.setNumericAttributes(numericAttributeRange); // forces all attributed to be set numeric, argument should be "first-last"
                 Instances data = loader.getDataSet();
 
                 // save ARFF
@@ -812,6 +813,8 @@ public class Utils
                 int lengthOfStayInDays = Integer.parseInt(thisLineComponents[3]);
                 int survivalInDays = Integer.parseInt(thisLineComponents[4]);
                 int inHospitalDeath0Or1 = Integer.parseInt(thisLineComponents[5]);
+
+                //if(!(inHospitalDeath0Or1 == 0 || inHospitalDeath0Or1 == 1)) System.err.println("missing outcomes ");
 
                 //create an outcome
                 Outcome outcome = new Outcome(recordID, sapsIScore, sofaScore, lengthOfStayInDays, survivalInDays, inHospitalDeath0Or1);

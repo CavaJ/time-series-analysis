@@ -1,6 +1,7 @@
 package com.rb.tsa;
 
 import java.io.Serializable;
+import java.math.RoundingMode;
 import java.util.*;
 
 //class to hold all outcomes from all different files
@@ -85,6 +86,36 @@ public class Outcomes implements Serializable, Comparable<Outcomes>
     {
         return outcomes.size() - countInHospitalDeathPositive();
     } // countInHospitalDeathPositive
+
+
+    public String classImbalanceInHospitalDeath()
+    {
+        int positiveCount = countInHospitalDeathPositive();
+        int negativeCount = countInHospitalDeathNegative();
+        return summaryString(positiveCount, negativeCount, outcomes.size());
+    } // classImbalanceInHospitalDeath
+
+
+    public String classImbalanceInHospitalDeath(int startIndexInclusive, int endIndexExclusive)
+    {
+        int positiveCount = countInHospitalDeathPositive(startIndexInclusive, endIndexExclusive);
+        int negativeCount = countInHospitalDeathNegative(startIndexInclusive, endIndexExclusive);
+        List<Outcome> startEndOutcomes = new ArrayList<>(outcomes.values()).subList(startIndexInclusive, endIndexExclusive);
+
+        return summaryString(positiveCount, negativeCount, startEndOutcomes.size());
+    } // classImbalanceInHospitalDeath
+
+
+    private String summaryString(int positiveCount, int negativeCount, int numDataInstances)
+    {
+        float positiveImbalancePercent = Utils.format("#.##", RoundingMode.HALF_UP,
+                100.f * (positiveCount / (numDataInstances * 1.0f)));
+        float negativeImbalancePercentage = Utils.format("#.##", RoundingMode.HALF_UP,
+                100.f * (negativeCount / (numDataInstances * 1.0f)));
+
+        return "Death in %: " + positiveImbalancePercent + " %" + ", Survival in %: " + negativeImbalancePercentage + " %"
+                + "\nDeath count: " + positiveCount + ", Survival count: " + negativeCount;
+    }
 
 
     //to count between different files, for example the first 4000 files belong to set-a, the next set-b and the next set-c

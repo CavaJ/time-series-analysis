@@ -26,7 +26,8 @@ public class Imputations
     } // getInstance
 
     //helper method to impute the list of multivariate time series
-    public List<MTSE> impute(List<MTSE> mtseList, ImputeMethod imputeMethod, VarRanges varRanges, float currentMissingValuePlaceHolder)
+    public List<MTSE> impute(List<MTSE> mtseList, ImputeMethod imputeMethod,  int[] trainingSetStartIndexIncEndIndexEx,
+                             VarRanges varRanges, float currentMissingValuePlaceHolder)
     {
         //obtain deep copy of the given mtse instances
         List<MTSE> dcList = new ArrayList<>();
@@ -110,7 +111,11 @@ public class Imputations
                 break;
             case MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION:
                 //get mean for each variable as a map
-                Map<String, Float> varMeanMap = Utils.meansOfVariablesUsingMaskingVector(dcList);
+                //mean value should be calculated in a training set, then applied to test set
+                //in the case of Physionet, it will be calculated on set-a, then will be applied to set-b and set-c
+                //Map<String, Float> varMeanMap = Utils.meansOfVariablesUsingMaskingVector(dcList);
+                Map<String, Float> varMeanMap
+                        = Utils.meansOfVariablesUsingMaskingVector(dcList.subList(trainingSetStartIndexIncEndIndexEx[0], trainingSetStartIndexIncEndIndexEx[1]));
                 for(MTSE mtse : dcList)
                 {
                     Map<String, List<Float>> varValuesInTsOrder = mtse.getVarValuesInTsOrder();
