@@ -2,15 +2,24 @@ package com.rb.tsa;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import weka.classifiers.Classifier;
+import weka.classifiers.Evaluation;
+import weka.classifiers.evaluation.ThresholdCurve;
+import weka.core.Instance;
 import weka.core.Instances;
+import weka.core.Version;
 import weka.core.converters.ArffSaver;
 import weka.core.converters.CSVLoader;
+import weka.gui.visualize.PlotData2D;
+import weka.gui.visualize.ThresholdVisualizePanel;
 
+import java.awt.*;
 import java.io.*;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.util.*;
+import java.util.List;
 
 //class containing utility methods
 public class Utils
@@ -481,7 +490,7 @@ public class Utils
     // 132539,"0,59.26,79.05,119.4,116.75,394.61,506.54,2.92,27.42,2.91,156.52,1.51,0.55,11.4,141.5,23.12,30.68,87.52,4.14,2.92,2.03,139.07,40.47,150.42,190.81,19.72,96.64,37.04,7.15,1.2,119.57,12.67,83.6,7.49\n...",0
     // ...
     public static void writeMTSEsToMultiInstanceArffFile(Dataset dataset, List<MTSE> mtses, Outcomes outcomes, String bagName,
-                                                  String[] classLabels, String destinationDirPath, String newDirNameToPutFile)
+                                                  String[] classLabels, String destinationDirPath, String newDirNameToPutFile, String fileNameAppendix)
     {
         if(mtses.isEmpty()) throw new RuntimeException("At lease one mtse should be provided");
         List<String> vars = mtses.get(0).getVars();
@@ -516,7 +525,7 @@ public class Utils
 
 
         String newFileName
-                = dataset.toSimpleString() + ".arff";
+                = dataset.toSimpleString() + "_" + fileNameAppendix + ".arff";
         try
         {
             File dir = new File(destinationDirPath + File.separator + newDirNameToPutFile);
@@ -892,5 +901,208 @@ public class Utils
 
         return records;
     } // genDescRecordsFromLocalFilePaths
+
+
+
+    //helper method to cross validate data
+    public static void crossValidate(Classifier cls, Instances data, Instances holdOutTestData, int seed, int folds) throws Exception
+    {
+        System.out.println("Original data: " + Utils.classImbalanceOnWekaInstances(data));
+
+        // randomize data
+        Random rand = new Random(seed);
+        Instances randData = new Instances(data);
+        randData.randomize(rand);
+
+        System.out.println("Randomized data: " + Utils.classImbalanceOnWekaInstances(data));
+
+        //  For example in a binary classification problem where we want to predict if a passenger on Titanic survived or not.
+        //  we have two classes here Passenger either survived or did not survive.
+        //  We ensure that each fold has a percentage of passengers that survived, and a percentage of passengers that did not survive.
+        if (randData.classAttribute().isNominal()) {//TODO check class size in each fold; num instances of negative and positive class versus non-stratified case
+            System.out.println("Class value is nominal, stratifying folds");
+            randData.stratify(folds);
+        }
+
+        System.out.println("Randomized data after stratification: " + Utils.classImbalanceOnWekaInstances(data));
+
+        // perform cross-validation
+        System.out.println();
+        System.out.println("=== Setup ===");
+        System.out.println("Classifier: " + cls.toString()); //weka.core.Utils.toCommandLine(cls));
+        System.out.println("Dataset: " + data.relationName());
+        System.out.println("Folds: " + folds);
+        System.out.println("Seed: " + seed);
+        System.out.println();
+        Evaluation evalAll = new Evaluation(randData);
+        for (int n = 0; n < folds; n++)
+        {
+            Evaluation eval = new Evaluation(randData);
+            Instances train = randData.trainCV(folds, n, rand);
+            Instances test = randData.testCV(folds, n);
+            // the above code is used by the StratifiedRemoveFolds filter, the
+            // code below by the Explorer/Experimenter:
+            // Instances train = randData.trainCV(folds, n, rand);
+
+            System.out.println("Fold " + (n+1) + ", training data => " + Utils.classImbalanceOnWekaInstances(train));
+            if(holdOutTestData == null)
+                System.out.println("Fold " + (n+1) + ", test data => " + Utils.classImbalanceOnWekaInstances(test));
+            else
+                System.out.println("Fold " + (n+1) + ", test data => " + Utils.classImbalanceOnWekaInstances(holdOutTestData));
+
+
+            // build and evaluate classifier
+            Classifier clsCopy = Classifier.makeCopy(cls);
+            clsCopy.buildClassifier(train);
+            if(holdOutTestData == null) {
+                eval.evaluateModel(clsCopy, test);
+                evalAll.evaluateModel(clsCopy, test);
+            }
+            else {
+                eval.evaluateModel(clsCopy, holdOutTestData);
+                evalAll.evaluateModel(clsCopy, holdOutTestData);
+            }
+
+
+            // output evaluation
+            System.out.println();
+            System.out.println(eval.toMatrixString("=== Confusion matrix for fold " + (n+1) + "/" + folds + " ===\n"));
+        }
+
+        //TODO save model and test on hold-out-set;
+        // check with weka explorer: https://www.youtube.com/watch?v=UzT4W1tOKD4
+        // this page https://waikato.github.io/weka-wiki/generating_classifier_evaluation_output_manually/
+        // says models are saved as built from full training set, even after cross validation,
+        // in this case, compare explorer output to programmatic train-test output
+        //evalAll.
+
+        //finally, evaluate model on hold-out test data
+        //System.out.println("Final evaluation on hold-out test set...");
+        //evalAll.evaluateModel(Classifier.makeCopy(cls), holdOutTestData);
+
+
+        //evalAll.crossValidateModel(cls, data, folds, new Random(seed)); // Equivalent to the for loop above
+
+
+        // output evaluation
+        System.out.println();
+        System.out.println(evalAll.toSummaryString("=== " + folds + "-fold Cross-validation ===", false));
+
+        // generate curve
+        toROCCurve(evalAll);
+    } // crossValidate
+
+
+    //helper method to do simply train and test
+    public static void simpleTrainTest(Classifier cls, Instances train, Instances test, int seedToRandomizeTrainingData, boolean displayROCCurve) throws Exception
+    {
+        Random rand = new Random(seedToRandomizeTrainingData);   // create seeded number generator
+        Instances randTrainingData = new Instances(train);   // create copy of original data
+        randTrainingData.randomize(rand);         // randomize data with number generator
+
+        System.out.println("WEKA version: " + Version.VERSION);
+        System.out.println("Train => " + Utils.classImbalanceOnWekaInstances(randTrainingData));
+        System.out.println("Test => " + Utils.classImbalanceOnWekaInstances(test));
+        //System.out.println(randTrainingData.toSummaryString());
+        //System.out.println(test.toSummaryString());
+
+
+
+        cls.buildClassifier(randTrainingData); //(train);
+        // evaluate the classifier and print some statistics
+        Evaluation eval = new Evaluation(randTrainingData); //(train);
+        eval.evaluateModel(cls, test);
+        //System.out.println(eval.toSummaryString("\nResults\n======\n", false));
+        System.out.println(eval.toSummaryString());
+        //println(eval.toCumulativeMarginDistributionString());
+        System.out.println(eval.toMatrixString());
+        //println(eval.toClassDetailsString());
+        //positive class is at index 0
+        //PredictivePerformanceEvaluator predEval
+        //        = new PredictivePerformanceEvaluator(eval.numTruePositives(0), eval.numFalseNegatives(0),
+        //        eval.numFalsePositives(0), eval.numTrueNegatives(0), new String[]{"1", "0"});
+        //println(predEval.confusionMatrix());
+
+
+        System.out.println("AUROC => " + eval.areaUnderROC(0));
+        System.out.println("Weighted AUROC => " + eval.weightedAreaUnderROC());
+        System.out.println("====================================================");
+
+        // generate curve
+        if(displayROCCurve) toROCCurve(eval);
+    } // simpleTrainTest
+
+
+    //TODO implement method to perform hyperparameter selection for classifier
+    // write different hyperparam selection for each classifier class
+    // use CVParamSelection from ParallelRadonMachine
+
+
+    //helper method to generate ROC curve
+    public static void toROCCurve(Evaluation eval)
+    {
+        try
+        {
+            // generate curve
+            ThresholdCurve tc = new ThresholdCurve();
+            int classIndex = 0;
+            Instances result = tc.getCurve(eval.predictions(), classIndex);
+
+            // plot curve
+            ThresholdVisualizePanel vmc = new ThresholdVisualizePanel();
+            vmc.setROCString("(Area under ROC = " +
+                    weka.core.Utils.doubleToString(tc.getROCArea(result), 4) + ")");
+            vmc.setName(result.relationName());
+            PlotData2D tempd = new PlotData2D(result);
+            tempd.setPlotName(result.relationName());
+            tempd.addInstanceNumberAttribute();
+            // specify which points are connected
+            boolean[] cp = new boolean[result.numInstances()];
+            for (int n = 1; n < cp.length; n++)
+                cp[n] = true;
+            tempd.setConnectPoints(cp);
+            // add plot
+            vmc.addPlot(tempd);
+
+            // display curve
+            String plotName = vmc.getName();
+            final javax.swing.JFrame jf =
+                    new javax.swing.JFrame("Weka Classifier Visualize: "+plotName);
+            jf.setSize(500,400);
+            jf.getContentPane().setLayout(new BorderLayout());
+            jf.getContentPane().add(vmc, BorderLayout.CENTER);
+            jf.addWindowListener(new java.awt.event.WindowAdapter() {
+                public void windowClosing(java.awt.event.WindowEvent e) {
+                    jf.dispose();
+                }
+            });
+            jf.setVisible(true);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    } // toROCCurve
+
+
+    //helper method to find class imbalance in weka instances
+    public static String classImbalanceOnWekaInstances(Instances data)
+    {
+        int numPositiveInstances = 0;
+        int numNegativeInstances = 0;
+
+        //for each instance check its class and update counters
+        for(int index = 0; index < data.numInstances(); index ++)
+        {
+            Instance thisInstance = data.instance(index);
+            if(Double.compare(thisInstance.value(data.classIndex()), 0.0) == 0)
+                numPositiveInstances ++;
+            else
+                numNegativeInstances ++;
+        } // for
+
+        return "numPositives: " + numPositiveInstances + ", numNegatives: " + numNegativeInstances + ", Imbalance: "
+                + format("#.##", RoundingMode.HALF_UP, 100 * numPositiveInstances / (data.numInstances() * 1.0f))
+                + "% - " +  format("#.##", RoundingMode.HALF_UP,100 * numNegativeInstances / (data.numInstances() * 1.0f)) + "%";
+    } // classImbalanceOnWekaInstances
 
 } // class Utils

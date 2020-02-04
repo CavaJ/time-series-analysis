@@ -5,16 +5,22 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import weka.classifiers.Classifier;
 import weka.classifiers.Evaluation;
+import weka.classifiers.bayes.BayesNet;
 import weka.classifiers.bayes.BayesianLogisticRegression;
 import weka.classifiers.bayes.NaiveBayes;
 import weka.classifiers.evaluation.ThresholdCurve;
+import weka.classifiers.functions.LinearRegression;
 import weka.classifiers.functions.Logistic;
 import weka.classifiers.functions.MultilayerPerceptron;
-import weka.classifiers.mi.MIBoost;
-import weka.classifiers.mi.MILR;
+import weka.classifiers.functions.RBFNetwork;
+import weka.classifiers.mi.*;
+import weka.classifiers.rules.PART;
 import weka.classifiers.trees.RandomForest;
+import weka.core.Instance;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
+import weka.filters.Filter;
+import weka.filters.supervised.instance.SpreadSubsample;
 import weka.gui.visualize.PlotData2D;
 import weka.gui.visualize.ThresholdVisualizePanel;
 
@@ -23,6 +29,7 @@ import java.io.File;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class Launcher
 {
@@ -207,8 +214,8 @@ public class Launcher
         allMeanImputedFilePaths.addAll(setAMeanImputedFilePaths);
         allMeanImputedFilePaths.addAll(setBMeanImputedFilePaths);
         allMeanImputedFilePaths.addAll(setCMeanImputedFilePaths);
-//
-//
+
+
 //        long start = System.currentTimeMillis();
 //        float fMissingValuePlaceHolder = -2.0f;
 //        List<MTSE> mtses = new ArrayList<>();
@@ -229,7 +236,7 @@ public class Launcher
 //        //println("Positive: " + outcomes.countInHospitalDeathPositive() + " and Negative: " + outcomes.countInHospitalDeathNegative());
 //        //println(outcomes.getRecordIDs().toString());
 //        Utils.writeMTSEsToMultiInstanceArffFile(Dataset.PhysioNet, mtses, outcomes,
-//                "patient_record_id", new String[]{"1", "0"}, DATA_FOLDER, "multi_instance_arff");
+//                "patient_record_id", new String[]{"1", "0"}, DATA_FOLDER, "multi_instance_arff", ""); // "", "set-a", "set-b", "set-c"
 //        println("Class imbalance for set-a => " + outcomes.classImbalanceInHospitalDeath(0, 4000));
 //        println("Class imbalance for set-b => " + outcomes.classImbalanceInHospitalDeath(4000, 8000));
 //        println("Class imbalance for set-c => " + outcomes.classImbalanceInHospitalDeath(8000, 12000));
@@ -240,98 +247,190 @@ public class Launcher
         {
             ConverterUtils.DataSource source
                     = new ConverterUtils.DataSource(DATA_FOLDER + File.separator + "multi_instance_arff" + File.separator + "physionet_dataset.arff");
-            Instances data = source.getDataSet();
-            // setting class attribute if the data format does not provide this information
+            //load all data
+            Instances allData = source.getDataSet();
+            // setting class attribute if the allData format does not provide this information
             // For example, the XRFF format saves the class attribute information as well
-            if (data.classIndex() == -1)
-                data.setClassIndex(data.numAttributes() - 1);
+            if (allData.classIndex() == -1)
+                allData.setClassIndex(allData.numAttributes() - 1);
 
-            Instances train = new Instances(data, 0, setAMeanImputedFilePaths.size());
-            Instances test = new Instances(data, setAMeanImputedFilePaths.size(), setBMeanImputedFilePaths.size());
+            //println(Utils.classImbalanceOnWekaInstances(allData));
 
-            //println(train.numInstances());
-            //println(test.numInstances());
-            //println(train.toString());
-            //println(Version.VERSION);
-            //println(data.toSummaryString());
+            //now load set-a, set-b and set-c separately
+            source = new ConverterUtils.DataSource(DATA_FOLDER + File.separator + "multi_instance_arff" + File.separator + "physionet_dataset_set-a.arff");
+            Instances setAData = source.getDataSet();
+            if (setAData.classIndex() == -1)
+                setAData.setClassIndex(setAData.numAttributes() - 1);
+            source = new ConverterUtils.DataSource(DATA_FOLDER + File.separator + "multi_instance_arff" + File.separator + "physionet_dataset_set-b.arff");
+            Instances setBData = source.getDataSet();
+            if (setBData.classIndex() == -1)
+                setBData.setClassIndex(setBData.numAttributes() - 1);
+
+            //WEIGHTS ARE ALL 1
+            //println(allData.sumOfWeights());
+            //HashSet<Double> weights = new HashSet<>();
+            //check the weights of bags
+            //for(int index = 0; index < allData.numInstances(); index ++)
+            //{
+            //    weights.add(allData.instance(0).weight());
+            //} // for
+            //println("Number of instances => " + allData.numInstances());
+            //println(weights.toString());
+            //System.exit(0);
 
 
-            // train classifier
-            //MIWrapper miw = new MIWrapper();
-            //miw.setClassifier(new RandomForest());
-            //Classifier cls = miw;
-                            // = new MIBoost();
-                            // = new MILR();
+            Instances train = new Instances(setAData);
+            println("Before undersampling Train => " + Utils.classImbalanceOnWekaInstances(train));
 
-            //MILR mil = new MILR();
+            //Undersample majority class
+            //Instead of using weka.filters.supervised.instance.Resample,
+            // a much easier way to achieve the same effect is to use weka.filters.supervised.SpreadSubsample instead, with distributionSpread=1.0:
+            String[] filterOptions = new String[2];
+            filterOptions[0] = "-M";                                               // "distributionSpread"
+            filterOptions[1] = "1.0";    //1.0 for 50%-50%, 1.5 for 40%-60%, 2.0 for 1/3, 2/3, 2.333 for 30%-70%
+            SpreadSubsample underSampleFilter = new SpreadSubsample();              // a new instance of filter
+            underSampleFilter.setOptions(filterOptions);                           // set options
+            println("Filter options: " + Arrays.toString(underSampleFilter.getOptions()));
+            underSampleFilter.setInputFormat(train);                                // inform the filter about the dataset **AFTER** setting options
+            train = Filter.useFilter(train, underSampleFilter);         // apply filter
+            println("After undersampling Train => " + Utils.classImbalanceOnWekaInstances(train));
+
+
+            Instances test = new Instances(setBData);
+
+
+            //MISVM mil = new MISVM(); mil.setOptions(weka.core.Utils.splitOptions("-N 2")); // no weighting of bags // //-N <num> Whether to 0=normalize/1=standardize/2=neither. (default 1=standardize)
+            //MITI mil = new MITI();
+            //MISMO mil = new MISMO(); // do not weight bags
+            //MINND mil = new MINND();
+            //MDD mil = new MDD(); mil.setOptions(weka.core.Utils.splitOptions("-N 2")); //cumulative assumption //-N <num> Whether to 0=normalize/1=standardize/2=neither. (default 1=standardize)
+            //MINUS => //MIEMDD mil = new MIEMDD(); mil.setOptions(weka.core.Utils.splitOptions("-N 2")); //-N <num> Whether to 0=normalize/1=standardize/2=neither. (default 1=standardize)
+            //MIDD mil = new MIDD(); mil.setOptions(weka.core.Utils.splitOptions("-N 2")); //-N <num> Whether to 0=normalize/1=standardize/2=neither. (default 1=standardize)
+            MIOptimalBall mil = new MIOptimalBall(); mil.setOptions(weka.core.Utils.splitOptions("-N 2")); //-N <num> Whether to 0=normalize/1=standardize/2=neither. (default 1=standardize)
+            println(Arrays.toString(mil.getOptions()) + "\n" + mil.getClass());
+
+            //System.exit(0);
+
+
+            //------- MIWrapper -----------
+            //MIWrapper mil = new MIWrapper();
+            //mil.setOptions(weka.core.Utils.splitOptions("-P 2 -A 1")); // P = 1 or 2, A = 1 are the best options for Logistic
+            //RandomForest rf = new RandomForest();
+            //rf.setOptions(weka.core.Utils.splitOptions("-I 100")); // default I is 10 (10 trees)
+            //mil.setClassifier(new MultilayerPerceptron()); // TODO you can define other parameters for an internal classifier or perform CVParameterSelection for hyperparameter selection
+            //println(Arrays.toString(mil.getOptions()) + "\n" + mil.getClass());
+            //-P [1|2|3]
+            //The method used in testing:
+            //1.arithmetic average
+            //2.geometric average
+            //3.max probability of positive bag.
+            //(default: 1)
+            //
+            //-A [0|1|2|3]
+            //The type of weight setting for each single-instance:
+            //0.keep the weight to be the same as the original value;
+            //1.weight = 1.0
+            //2.weight = 1.0/Total number of single-instance in the
+            //corresponding bag
+            //3. weight = Total number of single-instance / (Total
+            //number of bags * Total number of single-instance
+            //in the corresponding bag).
+            //(default: 3)
+            //
+            //-D
+            //If set, classifier is run in debug mode and
+            //may output additional info to the console
+            //
+            //-W
+            //Full name of base classifier.
+            //(default: weka.classifiers.rules.ZeroR)
+            //Options specific to classifier weka.classifiers.rules.ZeroR:
+            //-----------------------------
+
+
+
+
+            //SimpleMI mil = new SimpleMI();
+            //mil.setOptions(weka.core.Utils.splitOptions("-M 3"));
+            //-M [1|2|3]
+            //The method used in transformation:
+            //1.arithmetic average; 2.geometric center;
+            //3.using minimax combined features of a bag (default: 1)
+            //
+            //Method 3:
+            //Define s to be the vector of the coordinate-wise maxima
+            //and minima of X, ie.,
+            //s(X)=(minx1, ..., minxm, maxx1, ...,maxxm), transform
+            //the exemplars into mono-instance which contains attributes s(X)
+            //mil.setClassifier(new PART());
+            //println(Arrays.toString(mil.getOptions()) + "\n" + mil.getClass());
+
+
+
+
+            //------- MILR ----------------
+            //NO FILTERING OCCURES INSIDE "MILR" CLASS; e.g. MultiInstanceToPropositional or PropositionalToMultiInstance
+            //MILR mil = new MILR(); // TODO ridge parameter (-R) can be selected using hyperparameter selection
             //-A [0|1|2]
-            //  Defines the type of algorithm:
+            //  Defines the type of algorithm (default 0):
             //   0. standard MI assumption
             //   1. collective MI assumption, arithmetic mean for posteriors
             //   2. collective MI assumption, geometric mean for posteriors
-            //String[] options = weka.core.Utils.splitOptions("-A 0");
+            //String[] options = weka.core.Utils.splitOptions("-A 2"); //put -D for debugging output
             //mil.setOptions(options);
-            MIBoost mil = new MIBoost(); // TODO test BayesianLogicticRegression
-            mil.setClassifier(new BayesianLogisticRegression()); //new Logistic()); //new MultilayerPerceptron()); //new NaiveBayes()); //not good NaiveBayes; //(new RandomForest());
+            //println(Arrays.toString(mil.getOptions()) + "\n" + mil.getClass());
+            //-----------------------------
+
+
+
+            //--------- MIBoost -----------
+            //MultiInstanceToPropositional to propositional filter is present inside "MIBoost" class, weight bags unfortunately
+            //MIBoost mil = new MIBoost(); //
+            //-B <num>
+            //        The number of bins in discretization
+            //    (default 0, no discretization)
+            //
+            //-R <num>
+            //        Maximum number of boost iterations.
+            //(default 10)
+            //
+            //-W <class name> (can also be done by setClassifier method)
+            //Full name of classifier to boost.
+            //eg: weka.classifiers.bayes.NaiveBayes
             //mil.setOptions(weka.core.Utils.splitOptions("-R 10"));
-            Classifier cls = mil;
+            //OPTIONS FOR RANDOM FOREST:
+            //-I <num>
+            //  Number of iterations (i.e., the number of trees in the random forest).
+            //  (current value 10) //tested 100
+            //
+            // -K <number of attributes>
+            //  Number of attributes to randomly investigate. (default 0)
+            //  (<1 = int(log_2(#predictors)+1)). //not possible, 0 is only possible value
+            //
+            // -S <num>
+            //  Seed for random number generator.
+            //  (default 1)
+            //mil.setClassifier(new RandomForest()); //new BayesianLogisticRegression()); //new Logistic()); //new MultilayerPerceptron()); //new NaiveBayes()); //not good NaiveBayes; //(new RandomForest());
+            //println(Arrays.toString(mil.getOptions()) + "\n" + mil.getClass());
+            //-----------------------------
 
 
-            cls.buildClassifier(train);
-            // evaluate the classifier and print some statistics
-            Evaluation eval = new Evaluation(train);
-            eval.evaluateModel(cls, test);
-            //System.out.println(eval.toSummaryString("\nResults\n======\n", false));
-            println(eval.toSummaryString());
-            //println(eval.toCumulativeMarginDistributionString());
-            println(eval.toMatrixString());
-            //println(eval.toClassDetailsString());
-            //positive class is at index 0
-            PredictivePerformanceEvaluator predEval
-                    = new PredictivePerformanceEvaluator(eval.numTruePositives(0), eval.numFalseNegatives(0),
-                    eval.numFalsePositives(0), eval.numTrueNegatives(0), new String[]{"1", "0"});
-            println(predEval.confusionMatrix());
 
+            //TODO not possible to get final model after cross validation to test on hold-out test data
+            // it is somehow against the usage convention of cross validation, it is used when there is no unseen test data available
+            //Utils.crossValidate(mil, train, null, 1, 10);
+            //Utils.crossValidate(mil, train, test, 1, 10); // using 9/10 for training, but testing on set-b
 
-            // generate curve
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0;
-            Instances result = tc.getCurve(eval.predictions(), classIndex);
+            //multiple runs gave the same area under roc curve
+            //for(int i = 1; i <= 10; i ++)
+            //    Utils.simpleTrainTest(mil, train, test, i, false);
 
-            // plot curve
-            ThresholdVisualizePanel vmc = new ThresholdVisualizePanel();
-            vmc.setROCString("(Area under ROC = " +
-                    weka.core.Utils.doubleToString(tc.getROCArea(result), 4) + ")");
-            vmc.setName(result.relationName());
-            PlotData2D tempd = new PlotData2D(result);
-            tempd.setPlotName(result.relationName());
-            tempd.addInstanceNumberAttribute();
-            // specify which points are connected
-            boolean[] cp = new boolean[result.numInstances()];
-            for (int n = 1; n < cp.length; n++)
-                cp[n] = true;
-            tempd.setConnectPoints(cp);
-            // add plot
-            vmc.addPlot(tempd);
+            Utils.simpleTrainTest(mil, train, test, 1, true);
 
-            // display curve
-            String plotName = vmc.getName();
-            final javax.swing.JFrame jf =
-                    new javax.swing.JFrame("Weka Classifier Visualize: "+plotName);
-            jf.setSize(500,400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(vmc, BorderLayout.CENTER);
-            jf.addWindowListener(new java.awt.event.WindowAdapter() {
-                public void windowClosing(java.awt.event.WindowEvent e) {
-                    jf.dispose();
-                }
-            });
-            jf.setVisible(true);
 
         } catch (Exception e) {
             e.printStackTrace();
         }
-
 
         //for(String localFilePath : allVarJoinFilePaths)
         //    Utils.csv2Arff(localFilePath, "1-35");
