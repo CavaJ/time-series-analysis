@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="realAdaBoost">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/lib/realAdaBoost.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

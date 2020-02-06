@@ -2,14 +2,16 @@ package com.rb.tsa;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import weka.Run;
+import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Classifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.evaluation.ThresholdCurve;
-import weka.core.Instance;
-import weka.core.Instances;
-import weka.core.Version;
+import weka.core.*;
 import weka.core.converters.ArffSaver;
 import weka.core.converters.CSVLoader;
+import weka.filters.Filter;
+import weka.filters.unsupervised.attribute.Remove;
 import weka.gui.visualize.PlotData2D;
 import weka.gui.visualize.ThresholdVisualizePanel;
 
@@ -18,8 +20,9 @@ import java.io.*;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
-import java.util.*;
 import java.util.List;
+import java.util.Queue;
+import java.util.*;
 
 //class containing utility methods
 public class Utils
@@ -490,7 +493,8 @@ public class Utils
     // 132539,"0,59.26,79.05,119.4,116.75,394.61,506.54,2.92,27.42,2.91,156.52,1.51,0.55,11.4,141.5,23.12,30.68,87.52,4.14,2.92,2.03,139.07,40.47,150.42,190.81,19.72,96.64,37.04,7.15,1.2,119.57,12.67,83.6,7.49\n...",0
     // ...
     public static void writeMTSEsToMultiInstanceArffFile(Dataset dataset, List<MTSE> mtses, Outcomes outcomes, String bagName,
-                                                  String[] classLabels, String destinationDirPath, String newDirNameToPutFile, String fileNameAppendix)
+                                                  String[] classLabels, boolean includeTsMinutes,
+                                                         String destinationDirPath, String newDirNameToPutFile, String fileNameAppendix)
     {
         if(mtses.isEmpty()) throw new RuntimeException("At lease one mtse should be provided");
         List<String> vars = mtses.get(0).getVars();
@@ -502,6 +506,9 @@ public class Utils
         sb.append("@attribute ").append(bagName).append(" ")
                 .append("{").append(String.join(",", toStringCollection(outcomes.getRecordIDs()))).append("}").append("\n");
         sb.append("@attribute bag relational").append("\n");
+
+        if(includeTsMinutes) sb.append(" @attribute ").append("tsMinutes").append(" numeric").append("\n");
+
         vars.forEach(s -> {
             sb.append(" @attribute ").append(s.trim()).append(" numeric").append("\n");
         });
@@ -515,8 +522,11 @@ public class Utils
             List<String> joinedValuesInVarNameOrder = new ArrayList<>();
             for(Integer ts : valuesInVarNameOrder.keySet())
             {
-                //it joins all elements in the row by comma
-                joinedValuesInVarNameOrder.add(String.join(",", toStringCollection(valuesInVarNameOrder.get(ts))));
+                if(includeTsMinutes)
+                    //it joins all elements in the row by comma
+                    joinedValuesInVarNameOrder.add(ts + "," + String.join(",", toStringCollection(valuesInVarNameOrder.get(ts))));
+                else
+                    joinedValuesInVarNameOrder.add(String.join(",", toStringCollection(valuesInVarNameOrder.get(ts))));
             } // for
             //then joins rows by \n and appends a comma, class label and new line character
             sb.append(String.join("\\n", joinedValuesInVarNameOrder)).append("\"").append(",")
@@ -542,6 +552,19 @@ public class Utils
             e.printStackTrace();
         } // catch
     } // writeMTSEsToMultiInstanceArffFile
+
+
+    //helper method to print weka instances
+    public static void printWekaInstances(Instances data, int limit)
+    {
+        if(limit < 1 || limit > data.numInstances())
+            throw new RuntimeException("limit should be in range");
+
+        for(int index = 0; index < limit; index ++)
+        {
+            System.out.println(data.instance(index).toString());
+        } // for
+    } // printWekaInstances
 
 
     //helper method to convert Number collection to String collection
@@ -952,7 +975,8 @@ public class Utils
 
 
             // build and evaluate classifier
-            Classifier clsCopy = Classifier.makeCopy(cls);
+            Classifier clsCopy = AbstractClassifier.makeCopy(cls);
+                                //Classifier.makeCopy(cls);
             clsCopy.buildClassifier(train);
             if(holdOutTestData == null) {
                 eval.evaluateModel(clsCopy, test);
@@ -988,9 +1012,75 @@ public class Utils
         System.out.println();
         System.out.println(evalAll.toSummaryString("=== " + folds + "-fold Cross-validation ===", false));
 
+        System.out.println("AUROC => " + evalAll.areaUnderROC(0));
+        System.out.println("Weighted AUROC => " + evalAll.weightedAreaUnderROC());
+        System.out.println("====================================================");
+
         // generate curve
         toROCCurve(evalAll);
     } // crossValidate
+
+
+    //helper method to train and test on in given number of runs
+    public static void simpleTrainTestOverMultipleRuns(Classifier cls, Instances trainingData, int runs,
+                                                       Instances holdOutTestData, boolean displayROCCurve) throws Exception
+    {
+        System.out.println("WEKA version: " + Version.VERSION);
+        System.out.println("Original data: " + Utils.classImbalanceOnWekaInstances(trainingData));
+
+        // perform cross-validation
+        System.out.println();
+        System.out.println("=== Setup ===");
+        System.out.println("Classifier: " + cls.toString()); //weka.core.Utils.toCommandLine(cls));
+        System.out.println("Dataset: " + trainingData.relationName());
+        System.out.println("Runs: " + runs);
+        System.out.println();
+        Evaluation evalAll = new Evaluation(trainingData);
+        for (int i = 0; i < runs; i++)
+        {
+            // randomize data
+            int seed = i + 1;
+            Random rand = new Random(seed);
+            Instances randTrainingData = new Instances(trainingData);
+            randTrainingData.randomize(rand);
+
+
+            // build classifier
+            Classifier clsCopy = AbstractClassifier.makeCopy(cls);
+                                //Classifier.makeCopy(cls);
+            clsCopy.buildClassifier(randTrainingData);
+            // evaluate classifier
+            Evaluation eval = new Evaluation(randTrainingData);
+            eval.evaluateModel(clsCopy, holdOutTestData);
+            evalAll.evaluateModel(clsCopy, holdOutTestData);
+
+
+            System.out.println("Run " + (i+1) + ", training data => " + Utils.classImbalanceOnWekaInstances(randTrainingData));
+            System.out.println("Run " + (i+1) + ", test data => " + Utils.classImbalanceOnWekaInstances(holdOutTestData));
+
+
+            System.out.println("\n=== Run " + (i+1) + ", Classifier: " + clsCopy.getClass() + ", AUROC: " + eval.areaUnderROC(0)
+                    + ", Weighted AUROC: " + eval.weightedAreaUnderROC() + " ==== ");
+            System.out.println("=== Run " + (i+1) + ", Classifier: " + clsCopy.getClass() + ", AUROC: " + evalAll.areaUnderROC(0)
+                                + ", Weighted AUROC: " + evalAll.weightedAreaUnderROC() + " ==== \n");
+
+
+            // output evaluation
+            System.out.println();
+            System.out.println(eval.toMatrixString("=== Confusion matrix for run " + (i+1) + "/" + runs + " ===\n"));
+        } // for
+
+        // output evaluation
+        System.out.println();
+        System.out.println(evalAll.toSummaryString("=== " + runs + "-runs Train-test ===", false));
+
+        System.out.println("AUROC => " + evalAll.areaUnderROC(0));
+        System.out.println("Weighted AUROC => " + evalAll.weightedAreaUnderROC());
+        System.out.println("====================================================");
+
+        // generate curve
+        if(displayROCCurve) toROCCurve(evalAll);
+    } // simpleTrainTestOverMultipleRuns
 
 
     //helper method to do simply train and test
@@ -1082,6 +1172,119 @@ public class Utils
             e.printStackTrace();
         }
     } // toROCCurve
+
+
+    //helper method to print weights of instances of each bag
+    public static void printBagWeights(Instance bagInstance)
+    {
+        Instances bag = bagInstance.relationalValue(1);
+        for(int index = 0; index < bag.numInstances(); index ++)
+        {
+            Instance thisInnerInstance = bag.instance(index);
+            System.out.println("The weight of instance: " + thisInnerInstance
+                    + " => " + thisInnerInstance.weight());
+        } // for
+    } // printBagWeights
+
+
+    //TODO incomplete, apply MiToProp, remove attribute, then restore with PropToMi
+    //helper method to print bags
+    public static Instances reweightInstancesOfEachBagByTs(Instances data) throws Exception {
+        //take copy of the instance before manipulation
+        Instances newData = new Instances(data);
+        newData.deleteAttributeAt(1);
+        newData.insertAttributeAt(new Attribute("bag"), 1);
+        //newData.attribute(1).
+        //data = new Instances(data);
+
+
+        for(int index = 0; index < data.numInstances(); index ++)
+        {
+            //System.out.println(data.instance(index).attribute(0).value(index) + "'s Weight => " + data.instance(index).weight());
+            //System.out.println(data.instance(index).attribute(0).value(index) + "'s bag => "
+            //        + data.instance(index).relationalValue(1));
+
+            Instances bagOfThisBagInstance = data.instance(index).relationalValue(1);
+
+            double sumOfTsMinutes = 0;
+            for(int innerIndex = 0; innerIndex < bagOfThisBagInstance.numInstances(); innerIndex ++)
+            {
+                Instance thisInnerInstance = bagOfThisBagInstance.instance(innerIndex);
+                double timeStampOfThisInstance = thisInnerInstance.value(0); // ts at index 0
+                sumOfTsMinutes += timeStampOfThisInstance;
+            }
+
+
+            //System.out.println("\n ===== Before reweighting =====\n");
+            for(int innerIndex = 0; innerIndex < bagOfThisBagInstance.numInstances(); innerIndex ++)
+            {
+                Instance thisInnerInstance = bagOfThisBagInstance.instance(innerIndex);
+                //System.out.println("The weight of instance with ts: " + thisInnerInstance.value(0)
+                //                                    + " => " + thisInnerInstance.weight());
+                //System.out.println(thisInnerInstance);
+            } // for
+
+
+            for(int innerIndex = 0; innerIndex < bagOfThisBagInstance.numInstances(); innerIndex ++)
+            {
+                Instance thisInnerInstance = bagOfThisBagInstance.instance(innerIndex);
+                double timeStampOfThisInstance = thisInnerInstance.value(0); // ts at index 0
+                thisInnerInstance.setWeight((timeStampOfThisInstance / sumOfTsMinutes) + 1);
+            } // for
+
+
+            //System.out.println("\n ===== After reweighting =====\n");
+            for(int innerIndex = 0; innerIndex < bagOfThisBagInstance.numInstances(); innerIndex ++)
+            {
+                Instance thisInnerInstance = bagOfThisBagInstance.instance(innerIndex);
+                //System.out.println("The weight of instance with ts: " + thisInnerInstance.value(0)
+                //        + " => " + thisInnerInstance.weight());
+                //System.out.println(thisInnerInstance);
+            } // for
+
+
+            bagOfThisBagInstance.deleteAttributeAt(0);
+            //System.out.println(bagOfThisBagInstance.numAttributes());
+            //System.out.println("\n====== After deletion =====\n");
+            //printWekaInstances(bagOfThisBagInstance);
+
+            newData.instance(index).attribute(1).addRelation(bagOfThisBagInstance);
+
+            //break;
+        } // for
+
+        //System.out.println(data.numAttributes() + " <=> " + data.instance(0).relationalValue(1).numAttributes());
+
+
+
+        System.out.println(new Instances(newData, 0, 100));
+
+        return data;
+    } // reweightInstancesOfEachBagByTs
+
+
+    //helper method to demo MIBoost bag weighting
+    public static void demoMIBoostWeighting(Instances data)
+    {
+        for(int index = 0; index < data.numInstances(); index ++)
+        {
+            System.out.println(data.instance(index).attribute(0).value(index) + "'s Weight => " + data.instance(index).weight());
+        } // for
+
+        //Initialize the bags' weights
+        double N = (double)data.numInstances(), sumNi=0;
+        for(int i=0; i<N; i++)
+            sumNi += data.instance(i).relationalValue(1).numInstances();
+        for(int i=0; i<N; i++){
+            data.instance(i).setWeight(sumNi/N);
+        }
+
+        System.out.println("================ AFTER REWEIGHTING =================");
+        for(int index = 0; index < data.numInstances(); index ++)
+        {
+            System.out.println(data.instance(index).attribute(0).value(index) + "'s Weight => " + data.instance(index).weight());
+        } // for
+    } // demoMIBoostWeighting
 
 
     //helper method to find class imbalance in weka instances
