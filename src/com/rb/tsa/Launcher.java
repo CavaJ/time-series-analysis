@@ -4,25 +4,15 @@ package com.rb.tsa;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import weka.classifiers.Classifier;
-import weka.classifiers.functions.Logistic;
-import weka.classifiers.functions.SGD;
-import weka.classifiers.functions.SMO;
-import weka.classifiers.meta.LogitBoost;
-import weka.classifiers.meta.MultiBoostAB;
-import weka.classifiers.meta.RacedIncrementalLogitBoost;
-import weka.classifiers.meta.RealAdaBoost;
-import weka.classifiers.mi.*;
 import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 import weka.filters.Filter;
 import weka.filters.supervised.instance.SpreadSubsample;
-import weka.filters.unsupervised.attribute.MultiInstanceToPropositional;
 
 import java.io.File;
 import java.math.RoundingMode;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 public class Launcher
 {
@@ -200,13 +190,13 @@ public class Launcher
 
 
         //imputed file paths
-        List<String> setAMeanImputedFilePaths = Utils.listFilesFromLocalPath(DATA_FOLDER + File.separator + "mean_imputed_set-a", false);
-        List<String> setBMeanImputedFilePaths = Utils.listFilesFromLocalPath(DATA_FOLDER + File.separator + "mean_imputed_set-b", false);
-        List<String> setCMeanImputedFilePaths = Utils.listFilesFromLocalPath(DATA_FOLDER + File.separator + "mean_imputed_set-c", false);
-        List<String> allMeanImputedFilePaths = new ArrayList<>();
-        allMeanImputedFilePaths.addAll(setAMeanImputedFilePaths);
-        allMeanImputedFilePaths.addAll(setBMeanImputedFilePaths);
-        allMeanImputedFilePaths.addAll(setCMeanImputedFilePaths);
+//        List<String> setAMeanImputedFilePaths = Utils.listFilesFromLocalPath(DATA_FOLDER + File.separator + "mean_imputed_set-a", false);
+//        List<String> setBMeanImputedFilePaths = Utils.listFilesFromLocalPath(DATA_FOLDER + File.separator + "mean_imputed_set-b", false);
+//        List<String> setCMeanImputedFilePaths = Utils.listFilesFromLocalPath(DATA_FOLDER + File.separator + "mean_imputed_set-c", false);
+//        List<String> allMeanImputedFilePaths = new ArrayList<>();
+//        allMeanImputedFilePaths.addAll(setAMeanImputedFilePaths);
+//        allMeanImputedFilePaths.addAll(setBMeanImputedFilePaths);
+//        allMeanImputedFilePaths.addAll(setCMeanImputedFilePaths);
 
 
 //        long start = System.currentTimeMillis();
@@ -229,7 +219,8 @@ public class Launcher
 //        //println("Positive: " + outcomes.countInHospitalDeathPositive() + " and Negative: " + outcomes.countInHospitalDeathNegative());
 //        //println(outcomes.getRecordIDs().toString());
 //        Utils.writeMTSEsToMultiInstanceArffFile(Dataset.PhysioNet, mtses, outcomes,
-//                "patient_record_id", new String[]{"1", "0"}, true, DATA_FOLDER, "multi_instance_with_ts_arff", ""); // "", "set-a", "set-b", "set-c"
+//                "patient_record_id", new String[]{"1", "0"}, true, DATA_FOLDER,
+//                "multi_instance_with_ts_arff", ""); // "", "set-a", "set-b", "set-c"
 //        println("Class imbalance for set-a => " + outcomes.classImbalanceInHospitalDeath(0, 4000));
 //        println("Class imbalance for set-b => " + outcomes.classImbalanceInHospitalDeath(4000, 8000));
 //        println("Class imbalance for set-c => " + outcomes.classImbalanceInHospitalDeath(8000, 12000));
@@ -274,7 +265,7 @@ public class Launcher
 
 
 
-            MultiInstanceToPropositional miToProp = new MultiInstanceToPropositional();
+            //MultiInstanceToPropositional miToProp = new MultiInstanceToPropositional();
             //-A <num>
             //  The type of weight setting for each prop. instance:
             //0.weight = original single bag weight /Total number of
@@ -286,26 +277,34 @@ public class Launcher
             //of bags * Total number of prop. instance in the
             //corresponding bag).
             //(default:0)
-            miToProp.setOptions(weka.core.Utils.splitOptions("-A 1"));
-            miToProp.setInputFormat(setAData);
-            Instances newData = Filter.useFilter(setAData, miToProp);
-            println("After applying miToProp filter newData => " + Utils.classImbalanceOnWekaInstances(newData));
+            //miToProp.setOptions(weka.core.Utils.splitOptions("-A 1"));
+            //miToProp.setInputFormat(setAData);
+            //Instances newData = Filter.useFilter(setAData, miToProp);
+            //println("After applying miToProp filter newData => " + Utils.classImbalanceOnWekaInstances(newData));
             //for(int index = 0; index < newData.numInstances(); index ++)
             //{
             //    println(newData.instance(index));
             //} // for
             //newData.deleteAttributeAt(1);
-            println(new Instances(newData, 0, 100));
-            System.exit(0);
-
-
-            setAData = Utils.reweightInstancesOfEachBagByTs(setAData);
-            //Utils.printWekaInstances(setAData, 1);
-            //Utils.printBagWeights(setAData.instance(0));
-            setBData = Utils.reweightInstancesOfEachBagByTs(setBData);
-            //Utils.printWekaInstances(setBData, 1);
-            //Utils.printBagWeights(setBData.instance(0));
+            //println(new Instances(newData, 0, 100));
             //System.exit(0);
+
+
+            //setAData = Utils.reweightInstancesOfEachBagByTs(setAData);
+            //Utils.printWekaInstances(setAData, 1);
+            //Utils.printInstanceWeightsOfABag(setAData.instance(0));
+            //Utils.printBagWeights(setAData, 0, 10);
+            //System.exit(0);
+            //println("====================================================");
+            //setBData = Utils.reweightInstancesOfEachBagByTs(setBData);
+            //Utils.printWekaInstances(setBData, 1);
+            //Utils.printInstanceWeightsOfABag(setBData.instance(0));
+            //Utils.printBagWeights(setBData, 0, 10);
+            //System.exit(0);
+
+
+            //TODO apply MultiToProp filter, then run classifiers which implements WeightedInstancesHandler interface
+            //https://weka.sourceforge.io/doc.dev/weka/core/WeightedInstancesHandler.html
 
 
             Instances train = new Instances(setAData);
@@ -326,6 +325,43 @@ public class Launcher
 
 
             Instances test = new Instances(setBData);
+
+
+//            MILESFilter filter = new MILESFilter();
+//            filter.setInputFormat(train);
+//            Instances newData = Filter.useFilter(train, filter);
+//            println("After applying MILES filter, newData => " + Utils.classImbalanceOnWekaInstances(newData));
+//            //for(int index = 0; index < newData.numInstances(); index ++)
+//            //{
+//            //    println(newData.instance(index));
+//            //} // for
+//            println(newData);
+//            println("===========================================");
+//            System.exit(0);
+
+
+            //TRANSFORM TO PROP AND REWEIGHT
+            train = Utils.transformMIDataToProp(train, true, false, true);
+            println("After applying miToProp filter Train => " + Utils.classImbalanceOnWekaInstances(train));
+            //println(new Instances(train, 0, 100));
+            //println("===========================================");
+            //System.exit(0);
+            test = Utils.transformMIDataToProp(test, true, false, true);
+            println("After applying miToProp filter Test => " + Utils.classImbalanceOnWekaInstances(test));
+            //println(new Instances(test, 0, 100));
+            //println("===========================================");
+            //System.exit(0);
+
+
+            RandomForest rf = new RandomForest();
+            rf.setOptions(weka.core.Utils.splitOptions("-I 1000 -num-slots 10")); // default I is 10 (10 trees)
+            //Logistic rf = new Logistic();
+            println(Arrays.toString(rf.getOptions()) + "\n" + rf.getClass());
+            Classifier cls = rf;
+
+            //RealAdaBoost cls = new RealAdaBoost();
+            //cls.setOptions(weka.core.Utils.splitOptions("-I 10"));
+            //cls.setClassifier(rf);
 
 
             //JUST EXTRACTS THE INSTANCES FROM BAGS
@@ -349,7 +385,12 @@ public class Launcher
             //{
             //    println(newData.instance(index));
             //} // for
+            //println(newData);
+            //newData.attribute(1).relation().deleteAttributeAt(0);
+            //println(newData);
             //println("===========================================");
+            //System.exit(0);
+
 
 
             //TODO transform attributes to
@@ -401,10 +442,12 @@ public class Launcher
 
             //------- MIWrapper -----------
             //MIWrapper mil = new MIWrapper();
-            //mil.setOptions(weka.core.Utils.splitOptions("-P 2 -A 1")); // P = 1 or 2, A = 1 are the best options for Logistic
+            //mil.setOptions(weka.core.Utils.splitOptions("-P 2 -A 0")); // P = 1 or 2, A = 1 are the best options for Logistic, A=0 original weight of instance inside bag
             //RandomForest rf = new RandomForest();
             //rf.setOptions(weka.core.Utils.splitOptions("-I 1000 -num-slots 10")); // default I is 10 (10 trees)
             //mil.setClassifier(rf); // TODO you can define other parameters for an internal classifier or perform CVParameterSelection for hyperparameter selection
+
+            //Classifier cls = mil;
 
             //RealAdaBoost cls = new RealAdaBoost();
             //cls.setOptions(weka.core.Utils.splitOptions("-I 10"));
@@ -504,17 +547,17 @@ public class Launcher
 
             //------- MILR ----------------
             //NO FILTERING OCCURES INSIDE "MILR" CLASS; e.g. MultiInstanceToPropositional or PropositionalToMultiInstance
-            MILR milr = new MILR(); // TODO ridge parameter (-R) can be selected using hyperparameter selection
+            //MILR milr = new MILR(); // TODO ridge parameter (-R) can be selected using hyperparameter selection
             //-A [0|1|2]
             //  Defines the type of algorithm (default 0):
             //   0. standard MI assumption
             //   1. collective MI assumption, arithmetic mean for posteriors
             //   2. collective MI assumption, geometric mean for posteriors
-            String[] options = weka.core.Utils.splitOptions("-A 2"); //put -D for debugging output
-            milr.setOptions(options);
-            println(Arrays.toString(milr.getOptions()) + "\n" + milr.getClass());
+            //String[] options = weka.core.Utils.splitOptions("-A 2"); //put -D for debugging output
+            //milr.setOptions(options);
+            //println(Arrays.toString(milr.getOptions()) + "\n" + milr.getClass());
+            //Classifier cls = milr;
 
-            Classifier cls = milr;
             //RealAdaBoost cls = new RealAdaBoost();
             //cls.setOptions(weka.core.Utils.splitOptions("-I 10 -Q"));
             ///cls.setClassifier(milr);

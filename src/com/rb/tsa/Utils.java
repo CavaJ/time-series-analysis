@@ -2,8 +2,6 @@ package com.rb.tsa;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
-import weka.Run;
-import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Classifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.evaluation.ThresholdCurve;
@@ -11,7 +9,7 @@ import weka.core.*;
 import weka.core.converters.ArffSaver;
 import weka.core.converters.CSVLoader;
 import weka.filters.Filter;
-import weka.filters.unsupervised.attribute.Remove;
+import weka.filters.unsupervised.attribute.MultiInstanceToPropositional;
 import weka.gui.visualize.PlotData2D;
 import weka.gui.visualize.ThresholdVisualizePanel;
 
@@ -474,6 +472,8 @@ public class Utils
     } // writeGeneralDescriptorsRecords
 
 
+    //transform
+
 
     //helper method to write mtses to multi-instance format:
     //@relation physionet
@@ -499,12 +499,16 @@ public class Utils
         if(mtses.isEmpty()) throw new RuntimeException("At lease one mtse should be provided");
         List<String> vars = mtses.get(0).getVars();
 
+        //obtain record ids from mtses in the given list order, where real bags will be constructed for these mtses
+        List<String> recordIdsInMtses = new ArrayList<>();
+        mtses.forEach(mtse -> recordIdsInMtses.add(mtse.getRecordID() + ""));
+
         //feedback
         System.out.println("Generating content for multi-instance arff file...");
 
-        StringBuilder sb = new StringBuilder("@relation " + dataset.toSimpleString()).append("\n\n");
+        StringBuilder sb = new StringBuilder("@relation " + dataset.toSimpleString() + "_" + fileNameAppendix).append("\n\n");
         sb.append("@attribute ").append(bagName).append(" ")
-                .append("{").append(String.join(",", toStringCollection(outcomes.getRecordIDs()))).append("}").append("\n");
+                .append("{").append(String.join(",", recordIdsInMtses)).append("}").append("\n");
         sb.append("@attribute bag relational").append("\n");
 
         if(includeTsMinutes) sb.append(" @attribute ").append("tsMinutes").append(" numeric").append("\n");
@@ -975,8 +979,8 @@ public class Utils
 
 
             // build and evaluate classifier
-            Classifier clsCopy = AbstractClassifier.makeCopy(cls);
-                                //Classifier.makeCopy(cls);
+            Classifier clsCopy = //AbstractClassifier.makeCopy(cls); weka 3.7.0
+                                Classifier.makeCopy(cls);
             clsCopy.buildClassifier(train);
             if(holdOutTestData == null) {
                 eval.evaluateModel(clsCopy, test);
@@ -1046,8 +1050,8 @@ public class Utils
 
 
             // build classifier
-            Classifier clsCopy = AbstractClassifier.makeCopy(cls);
-                                //Classifier.makeCopy(cls);
+            Classifier clsCopy = //AbstractClassifier.makeCopy(cls); // weka 3.7.0
+                                Classifier.makeCopy(cls);
             clsCopy.buildClassifier(randTrainingData);
             // evaluate classifier
             Evaluation eval = new Evaluation(randTrainingData);
@@ -1175,8 +1179,11 @@ public class Utils
 
 
     //helper method to print weights of instances of each bag
-    public static void printBagWeights(Instance bagInstance)
+    public static void printInstanceWeightsOfABag(Instance bagInstance)
     {
+        //recordId is at attribute 0
+        //bagInstance.attribute(0).value(0) => obtains value from patient_record_id attribute in the dataset description, not from the instance
+        System.out.println("Bag " + bagInstance.toString(bagInstance.attribute(0)) + "'s instance weights: ");
         Instances bag = bagInstance.relationalValue(1);
         for(int index = 0; index < bag.numInstances(); index ++)
         {
@@ -1184,24 +1191,42 @@ public class Utils
             System.out.println("The weight of instance: " + thisInnerInstance
                     + " => " + thisInnerInstance.weight());
         } // for
+    } // printInstanceWeightsOfABag
+
+
+
+    //helper method to print bag weights of multi-instance data
+    public static void printBagWeights(Instances multiInstanceData, int from, int to)
+    {
+        if(from < 0 || from > multiInstanceData.numInstances() || to < 0 || to > multiInstanceData.numInstances() || from > to)
+            throw new RuntimeException("Please correctly set from and to");
+
+        multiInstanceData = new Instances(multiInstanceData, from, to);
+
+        for(int index = 0; index < multiInstanceData.numInstances(); index ++)
+        {
+            Instance thisBag = multiInstanceData.instance(index);
+            //thisBag.attribute(0).value(index) > obtains value from patient_record_id attribute in the dataset description, not from the instance
+            System.out.println(thisBag.toString(thisBag.attribute(0)) + "'s Weight => "
+                    + thisBag.weight());
+        } // for
     } // printBagWeights
 
 
-    //TODO incomplete, apply MiToProp, remove attribute, then restore with PropToMi
-    //helper method to print bags
-    public static Instances reweightInstancesOfEachBagByTs(Instances data) throws Exception {
+
+    //helper method to reweight instances inside each bag by ts through keeping multiInstance format
+    //TODO MI data generated by this method cannot be used MI learners (single instances weights are not 1, does not implement WeightedInstancesHandler interface)
+    public static Instances reweightInstancesOfEachBagByTs(Instances data) throws Exception
+    {
         //take copy of the instance before manipulation
-        Instances newData = new Instances(data);
-        newData.deleteAttributeAt(1);
-        newData.insertAttributeAt(new Attribute("bag"), 1);
-        //newData.attribute(1).
-        //data = new Instances(data);
+        data = new Instances(data);
 
 
         for(int index = 0; index < data.numInstances(); index ++)
         {
-            //System.out.println(data.instance(index).attribute(0).value(index) + "'s Weight => " + data.instance(index).weight());
-            //System.out.println(data.instance(index).attribute(0).value(index) + "'s bag => "
+            //data.instance(index).attribute(0).value(0) => obtains value from patient_record_id attribute in the dataset description, not from the instance
+            //System.out.println(data.instance(index).toString(bagInstance.attribute(0) + "'s Weight => " + data.instance(index).weight());
+            //System.out.println(data.instance(index).toString(bagInstance.attribute(0) + "'s bag => "
             //        + data.instance(index).relationalValue(1));
 
             Instances bagOfThisBagInstance = data.instance(index).relationalValue(1);
@@ -1216,13 +1241,13 @@ public class Utils
 
 
             //System.out.println("\n ===== Before reweighting =====\n");
-            for(int innerIndex = 0; innerIndex < bagOfThisBagInstance.numInstances(); innerIndex ++)
-            {
-                Instance thisInnerInstance = bagOfThisBagInstance.instance(innerIndex);
+            //for(int innerIndex = 0; innerIndex < bagOfThisBagInstance.numInstances(); innerIndex ++)
+            //{
+            //    Instance thisInnerInstance = bagOfThisBagInstance.instance(innerIndex);
                 //System.out.println("The weight of instance with ts: " + thisInnerInstance.value(0)
                 //                                    + " => " + thisInnerInstance.weight());
                 //System.out.println(thisInnerInstance);
-            } // for
+            //} // for
 
 
             for(int innerIndex = 0; innerIndex < bagOfThisBagInstance.numInstances(); innerIndex ++)
@@ -1234,13 +1259,13 @@ public class Utils
 
 
             //System.out.println("\n ===== After reweighting =====\n");
-            for(int innerIndex = 0; innerIndex < bagOfThisBagInstance.numInstances(); innerIndex ++)
-            {
-                Instance thisInnerInstance = bagOfThisBagInstance.instance(innerIndex);
+            //for(int innerIndex = 0; innerIndex < bagOfThisBagInstance.numInstances(); innerIndex ++)
+            //{
+            //    Instance thisInnerInstance = bagOfThisBagInstance.instance(innerIndex);
                 //System.out.println("The weight of instance with ts: " + thisInnerInstance.value(0)
                 //        + " => " + thisInnerInstance.weight());
                 //System.out.println(thisInnerInstance);
-            } // for
+            //} // for
 
 
             bagOfThisBagInstance.deleteAttributeAt(0);
@@ -1248,19 +1273,183 @@ public class Utils
             //System.out.println("\n====== After deletion =====\n");
             //printWekaInstances(bagOfThisBagInstance);
 
-            newData.instance(index).attribute(1).addRelation(bagOfThisBagInstance);
-
             //break;
         } // for
 
-        //System.out.println(data.numAttributes() + " <=> " + data.instance(0).relationalValue(1).numAttributes());
+        //remove attribute name from schema
+        data.attribute(1).relation().deleteAttributeAt(0);
 
-
-
-        System.out.println(new Instances(newData, 0, 100));
+        //System.out.println(new Instances(data, 0, 100));
 
         return data;
     } // reweightInstancesOfEachBagByTs
+
+
+    //helper method to reweight instances obtained by multi-instance filter
+    public static Instances transformMIDataToProp(Instances miData, boolean removeTs, boolean keepPropFormat, boolean reweightByTs) throws Exception
+    {
+        if (miData.numInstances() == 0 || miData.instance(0).relationalValue(1) == null)
+            throw new RuntimeException("Given data is either empty or is not multi-instance data");
+
+        //apply mi to prop
+        MultiInstanceToPropositional miToProp = new MultiInstanceToPropositional();
+        //-A <num>
+        //  The type of weight setting for each prop. instance:
+        //0.weight = original single bag weight /Total number of
+        //prop. instance in the corresponding bag;
+        //1.weight = 1.0;
+        //2.weight = 1.0/Total number of prop. instance in the
+        //corresponding bag;
+        //3. weight = Total number of prop. instance / (Total number
+        //of bags * Total number of prop. instance in the
+        //corresponding bag).
+        //(default:0)
+        miToProp.setOptions(weka.core.Utils.splitOptions("-A 1"));
+        miToProp.setInputFormat(miData);
+        Instances newData = Filter.useFilter(miData, miToProp);
+        //System.out.println("After applying miToProp filter newData => " + Utils.classImbalanceOnWekaInstances(newData));
+        //System.out.println(newData);
+
+        if(reweightByTs)
+        {
+            LinkedHashMap<String, List<Instance>> bagIdInstanceMap = new LinkedHashMap<>();
+
+            for(int index = 0; index < newData.numInstances(); index ++)
+            {
+                Instance thisPropInstance = newData.instance(index);
+                String bagId = thisPropInstance.toString(thisPropInstance.attribute(0));
+
+                //if the bagId is not there, create a new list and apply there
+                if(!bagIdInstanceMap.containsKey(bagId))
+                {
+                    List<Instance> instanceList = new ArrayList<>();
+                    instanceList.add(thisPropInstance);
+                    bagIdInstanceMap.put(bagId, instanceList);
+                } // if
+                else
+                {
+                    bagIdInstanceMap.get(bagId).add(thisPropInstance);
+                } // else
+
+                //System.out.println(bagId + ", Ts: " + thisPropInstance.toString(thisPropInstance.attribute(1)) + " => " + thisPropInstance.toString());
+            } // for
+
+
+            //for each bagId, reweight the instances by their ts
+            for(String bagId : bagIdInstanceMap.keySet())
+            {
+                //compute the sum of timestampMinutes
+                List<Instance> instanceList = bagIdInstanceMap.get(bagId);
+                double sumOfTsMinutes = 0;
+                for(Instance instance : instanceList)
+                    sumOfTsMinutes += Double.parseDouble(instance.toString(instance.attribute(1)));
+
+                //now reweight
+                for(Instance instance : instanceList)
+                {
+                    double tsMinutes = Double.parseDouble(instance.toString(instance.attribute(1)));
+                    double weight = tsMinutes / sumOfTsMinutes;
+                    instance.setWeight(weight + 1); //TODO weightedInstanceHandlers cannot handle weighted data interestingly in weka 3.9.4
+                } // for
+
+                //instanceList.forEach(System.out::println);
+            } // for each bagId
+        } // if
+
+        //System.exit(0);
+
+
+        //ts should be removed before bag_id attribute
+        if(removeTs)
+            newData.deleteAttributeAt(1);
+
+        if(!keepPropFormat) // attribute 0 is a bag_id attribute (contains all bag_ids in {})
+        {
+            //remove bag_id attribute
+            newData.deleteAttributeAt(0);
+            newData = buildInstances(newData); // build instances one by one to be in mono-instance format
+        }
+
+        return newData;
+    } // transformMiDataToProp
+
+
+    //transform List<LabeledPoint> to Instances
+    private static Instances buildInstances(Instances propData)
+    {
+        //create an empty arraylist first
+        ArrayList<Attribute> attributes = new ArrayList<Attribute>();
+
+        // for one labeledPoint in a partition
+        // do get feature vector and create attributes from them
+
+        for (int i = 0; i < propData.numAttributes() - 1; i++)
+        {
+            // attribute name will be x1, x2, x3 etc...
+            Attribute attribute = new Attribute(propData.attribute(i).name().replace("bag_", ""));
+            attributes.add(attribute);
+        } // for
+
+        // Declare the class attribute along with its values
+        FastVector fvClassVal = new FastVector(2);
+        fvClassVal.addElement("1");
+        fvClassVal.addElement("0");
+        Attribute label = new Attribute("class", fvClassVal);
+
+        // Declare the feature vector, first add class label attribute
+        FastVector fvWekaAttributes = new FastVector(4);
+        //then for each attribute in an attributes add them to wekaAttributes
+        for (Attribute attribute : attributes)
+        {
+            fvWekaAttributes.addElement(attribute);
+        } // for
+        fvWekaAttributes.addElement(label);
+
+
+        // Create an empty training set
+        Instances newData = new Instances("new_relation" //propData.relationName()
+                                , fvWekaAttributes, 10);
+        // Set class index
+        newData.setClassIndex(fvWekaAttributes.size() - 1);
+
+
+        //for each labeledPoint in partition, create an instance
+        //from that labeled point
+        for (int i = 0; i < propData.numInstances(); i++)
+        {
+            Instance thisPropInstance = propData.instance(i);
+
+            // Create the instance, number of attributes will be #features + label
+            Instance instance = new Instance(attributes.size() + 1); // weka 3.7.0
+                                //new DenseInstance(attributes.size() + 1);
+
+            //class label of labeled point
+            double lbl = thisPropInstance.classValue();
+
+            //first set class label for the attribute
+            instance.setValue((Attribute)fvWekaAttributes.elementAt(fvWekaAttributes.size() - 1), lbl);
+
+
+            for (int index = 0; index < thisPropInstance.numAttributes() - 1; index++)
+            {
+                instance.setValue((Attribute) fvWekaAttributes
+                        .elementAt(index), Double.parseDouble(thisPropInstance.toString(thisPropInstance.attribute(index))));
+
+                instance.setWeight(thisPropInstance.weight());
+            } // for
+
+            // add the instance
+            newData.add(instance);
+        } // for
+
+						 /*instance.setValue((Attribute)fvWekaAttributes.elementAt(0), 1.0);
+						 instance.setValue((Attribute)fvWekaAttributes.elementAt(1), 0.5);
+						 instance.setValue((Attribute)fvWekaAttributes.elementAt(2), "gray");
+						 instance.setValue((Attribute)fvWekaAttributes.elementAt(3), "positive");*/
+
+        return newData;
+    } // buildInstances
+
 
 
     //helper method to demo MIBoost bag weighting
