@@ -1,7 +1,7 @@
 <component name="libraryTable">
-  <library name="weka-3.7.0">
+  <library name="stackingC">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/lib/weka-3.7.0.jar!/" />
+      <root url="jar://$PROJECT_DIR$/ensemble/stackingC.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

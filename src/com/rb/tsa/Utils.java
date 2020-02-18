@@ -1,18 +1,27 @@
 package com.rb.tsa;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Classifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.evaluation.ThresholdCurve;
 import weka.core.*;
 import weka.core.converters.ArffSaver;
 import weka.core.converters.CSVLoader;
+import weka.core.converters.ConverterUtils;
 import weka.filters.Filter;
+import weka.filters.supervised.instance.Resample;
+import weka.filters.supervised.instance.SMOTE;
+import weka.filters.supervised.instance.SpreadSubsample;
 import weka.filters.unsupervised.attribute.MultiInstanceToPropositional;
+import weka.filters.unsupervised.attribute.PropositionalToMultiInstance;
+import weka.gui.visualize.Plot2D;
 import weka.gui.visualize.PlotData2D;
 import weka.gui.visualize.ThresholdVisualizePanel;
 
+import javax.swing.*;
 import java.awt.*;
 import java.io.*;
 import java.math.RoundingMode;
@@ -333,6 +342,64 @@ public class Utils
         return newFilePath;
     } // writeToLocalFileSystem
 
+
+
+    //to obtain input stream from a string
+    public static InputStream stringToInputStream(String str)
+    {
+        return new ByteArrayInputStream(str.getBytes());
+    } // stringToInputStream
+
+
+    //helper method to convert mtses to weka instances
+    public static Instances mtsesToMIData(Dataset dataset, List<MTSE> mtses, Outcomes outcomes, String bagName,
+                                          String[] classLabels, boolean includeTsMinutes, String subsetOfTheDataset) throws Exception
+    {
+        if(mtses.isEmpty()) throw new RuntimeException("At least one mtse should be provided");
+        List<String> vars = mtses.get(0).getVars();
+
+        //obtain record ids from mtses in the given list order, where real bags will be constructed for these mtses
+        List<String> recordIdsInMtses = new ArrayList<>();
+        mtses.forEach(mtse -> recordIdsInMtses.add(mtse.getRecordID() + ""));
+
+        //feedback
+        System.out.println("Generating content for multi-instance format...");
+
+        StringBuilder sb = new StringBuilder("@relation " + dataset.toSimpleString() + "_" + subsetOfTheDataset).append("\n\n");
+        sb.append("@attribute ").append(bagName).append(" ")
+                .append("{").append(String.join(",", recordIdsInMtses)).append("}").append("\n");
+        sb.append("@attribute bag relational").append("\n");
+
+        if(includeTsMinutes) sb.append(" @attribute ").append("tsMinutes").append(" numeric").append("\n");
+
+        vars.forEach(s -> {
+            sb.append(" @attribute ").append(s.trim()).append(" numeric").append("\n");
+        });
+        sb.append("@end bag").append("\n");
+        sb.append("@attribute class {").append(String.join(",", classLabels)).append("}").append("\n\n");
+        sb.append("@data").append("\n");
+        for(MTSE mtse : mtses)
+        {
+            sb.append(mtse.getRecordID()).append(",").append("\"");
+            Map<Integer, List<Float>> valuesInVarNameOrder = mtse.getValuesInVarNameOrder();
+            List<String> joinedValuesInVarNameOrder = new ArrayList<>();
+            for(Integer ts : valuesInVarNameOrder.keySet())
+            {
+                if(includeTsMinutes)
+                    //it joins all elements in the row by comma
+                    joinedValuesInVarNameOrder.add(ts + "," + String.join(",", toStringCollection(valuesInVarNameOrder.get(ts))));
+                else
+                    joinedValuesInVarNameOrder.add(String.join(",", toStringCollection(valuesInVarNameOrder.get(ts))));
+            } // for
+            //then joins rows by \n and appends a comma, class label and new line character
+            sb.append(String.join("\\n", joinedValuesInVarNameOrder)).append("\"").append(",")
+                    .append(outcomes.get(mtse.getRecordID()).getInHospitalDeath0Or1()).append("\n");
+        } // for
+
+        System.out.println("Relation " + dataset.toSimpleString() + "_" + subsetOfTheDataset + " is loaded as Weka Instances...");
+        return new ConverterUtils.DataSource(stringToInputStream(sb.toString())).getDataSet();
+
+    } // mtsesToMIData
 
 
 
@@ -759,6 +826,20 @@ public class Utils
     } // median
 
 
+//    //TODO implement the overloaded version to compute the median form the list
+//    public static float median(List<Float> list)
+//    {
+//        if (list.size() == 0) {
+//            throw new IllegalArgumentException("to calculate median we need at least 1 element");
+//        }
+//
+//        Collections.sort(list);
+//
+//
+//
+//    } // median
+
+
     //TODO use the mean obtained from training dataset for test data set during imputation of test dataset
     //helper method to compute the mean of variables in all given time series using masking vector
     public static Map<String, Float> meansOfVariablesUsingMaskingVector(List<MTSE> mtses)
@@ -800,6 +881,61 @@ public class Utils
 
         return varMeanMap;
     } // meansOfVariablesUsingMaskingVector
+
+
+    //helper method to calculate the medians of variables in mtses
+    public static Map<String, Float> mediansOfVariables(List<MTSE> mtses)
+    {
+        if(mtses.isEmpty()) throw new RuntimeException("At least one mtse should be provided as an argument");
+
+        HashMap<String, Float> varMedianMap = new HashMap<>();
+        //all mtses have the same vars, so get vars
+        List<String> vars = mtses.get(0).getVars();
+
+        HashMap<String, List<Float>> varAndAllValuesMap = new HashMap<>();
+        //initialize a list for each var
+        for(String var : vars)
+            varAndAllValuesMap.put(var, new ArrayList<Float>());
+
+        //for each variable, collect all its non-negative values
+        for(String var : vars)
+        {
+            List<Float> allValuesOfThisVar = varAndAllValuesMap.get(var);
+
+            for(MTSE mtse : mtses)
+            {
+                List<Float> varValuesInTsOrderForThisVar = mtse.getVarValuesInTsOrder().get(var);
+                List<Integer> maskingsInTsOrderForThisVar = mtse.getMaskingsInTsOrder().get(var);
+
+                //if masking size and number of var values are different throw exception
+                if(varValuesInTsOrderForThisVar.size() != maskingsInTsOrderForThisVar.size())
+                    throw new RuntimeException("Masking size and number of var values should be the same");
+
+                for (float valueAtThisTs : varValuesInTsOrderForThisVar)
+                {
+                    if (valueAtThisTs >= 0) //only add valid values to the list, missing values are < 0
+                        allValuesOfThisVar.add(valueAtThisTs);
+                } // for each tsIndex
+
+
+            } // for each mtse
+
+        } // for each var
+
+        //now for each var sort its list and compute median
+        for(String var : varAndAllValuesMap.keySet())
+        {
+            List<Float> list = varAndAllValuesMap.get(var);
+            //list.sort(Float::compareTo);
+
+            //compute the median
+            float median = median(list.toArray(new Float[]{})); // method internally sorts the array
+            varMedianMap.put(var, median);
+        } // for
+
+        return varMedianMap;
+    } // mediansOfVariables
+
 
 
     //var args to array method
@@ -932,7 +1068,8 @@ public class Utils
 
 
     //helper method to cross validate data
-    public static void crossValidate(Classifier cls, Instances data, Instances holdOutTestData, int seed, int folds) throws Exception
+    public static void crossValidate(Classifier cls, Instances data, Instances holdOutTestData, int seed, int folds,
+                                     boolean displayRocCurve) throws Exception
     {
         System.out.println("Original data: " + Utils.classImbalanceOnWekaInstances(data));
 
@@ -979,8 +1116,8 @@ public class Utils
 
 
             // build and evaluate classifier
-            Classifier clsCopy = //AbstractClassifier.makeCopy(cls); weka 3.7.0
-                                Classifier.makeCopy(cls);
+            Classifier clsCopy = AbstractClassifier.makeCopy(cls);
+                                //Classifier.makeCopy(cls); //weka 3.7.0
             clsCopy.buildClassifier(train);
             if(holdOutTestData == null) {
                 eval.evaluateModel(clsCopy, test);
@@ -992,19 +1129,26 @@ public class Utils
             }
 
 
+            System.out.println("\n=== Fold " + (n+1) + ", Classifier: " + clsCopy.getClass() + ",      AUROC: " + eval.areaUnderROC(0)
+                    + ",      Weighted AUROC: " + eval.weightedAreaUnderROC() + ",      Accuracy: " + accuracy(eval) + " ==== ");
+
+            System.out.println("=== Fold " + (n+1) + ", Classifier: " + clsCopy.getClass() + ", Avg. AUROC: " + evalAll.areaUnderROC(0)
+                    + ", Avg. Weighted AUROC: " + evalAll.weightedAreaUnderROC() + ", Avg. Accuracy: " + accuracy(evalAll) +  " ==== \n");
+
             // output evaluation
             System.out.println();
             System.out.println(eval.toMatrixString("=== Confusion matrix for fold " + (n+1) + "/" + folds + " ===\n"));
-        }
+        } // for
+
 
         //TODO save model and test on hold-out-set;
         // check with weka explorer: https://www.youtube.com/watch?v=UzT4W1tOKD4
         // this page https://waikato.github.io/weka-wiki/generating_classifier_evaluation_output_manually/
         // says models are saved as built from full training set, even after cross validation,
         // in this case, compare explorer output to programmatic train-test output
-        //evalAll.
 
-        //finally, evaluate model on hold-out test data
+
+        //finally, evaluate model on hold-out test data; not meaningful
         //System.out.println("Final evaluation on hold-out test set...");
         //evalAll.evaluateModel(Classifier.makeCopy(cls), holdOutTestData);
 
@@ -1018,16 +1162,21 @@ public class Utils
 
         System.out.println("AUROC => " + evalAll.areaUnderROC(0));
         System.out.println("Weighted AUROC => " + evalAll.weightedAreaUnderROC());
+        System.out.println("Accuracy => " + accuracy(evalAll));
         System.out.println("====================================================");
 
+
         // generate curve
-        toROCCurve(evalAll);
+        if(displayRocCurve)
+            toROCCurve(evalAll);
     } // crossValidate
 
 
     //helper method to train and test on in given number of runs
     public static void simpleTrainTestOverMultipleRuns(Classifier cls, Instances trainingData, int runs,
-                                                       Instances holdOutTestData, boolean displayROCCurve) throws Exception
+                                                       Instances testData, boolean displayROCCurve
+                                                        //, Instances separateHoldOutSet, boolean testOnSeparateHoldOutSet
+                                                        ) throws Exception
     {
         System.out.println("WEKA version: " + Version.VERSION);
         System.out.println("Original data: " + Utils.classImbalanceOnWekaInstances(trainingData));
@@ -1050,23 +1199,24 @@ public class Utils
 
 
             // build classifier
-            Classifier clsCopy = //AbstractClassifier.makeCopy(cls); // weka 3.7.0
-                                Classifier.makeCopy(cls);
+            Classifier clsCopy = AbstractClassifier.makeCopy(cls);
+                                //Classifier.makeCopy(cls); // weka 3.7.0
             clsCopy.buildClassifier(randTrainingData);
             // evaluate classifier
             Evaluation eval = new Evaluation(randTrainingData);
-            eval.evaluateModel(clsCopy, holdOutTestData);
-            evalAll.evaluateModel(clsCopy, holdOutTestData);
+            eval.evaluateModel(clsCopy, testData);
+            evalAll.evaluateModel(clsCopy, testData);
 
 
             System.out.println("Run " + (i+1) + ", training data => " + Utils.classImbalanceOnWekaInstances(randTrainingData));
-            System.out.println("Run " + (i+1) + ", test data => " + Utils.classImbalanceOnWekaInstances(holdOutTestData));
+            System.out.println("Run " + (i+1) + ", test data => " + Utils.classImbalanceOnWekaInstances(testData));
 
 
-            System.out.println("\n=== Run " + (i+1) + ", Classifier: " + clsCopy.getClass() + ", AUROC: " + eval.areaUnderROC(0)
-                    + ", Weighted AUROC: " + eval.weightedAreaUnderROC() + " ==== ");
-            System.out.println("=== Run " + (i+1) + ", Classifier: " + clsCopy.getClass() + ", AUROC: " + evalAll.areaUnderROC(0)
-                                + ", Weighted AUROC: " + evalAll.weightedAreaUnderROC() + " ==== \n");
+            System.out.println("\n=== Run " + (i+1) + ", Classifier: " + clsCopy.getClass() + ",      AUROC: " + eval.areaUnderROC(0)
+                    + ",      Weighted AUROC: " + eval.weightedAreaUnderROC() + ",      Accuracy: " + accuracy(eval) + " ==== ");
+
+            System.out.println("=== Run " + (i+1) + ", Classifier: " + clsCopy.getClass() + ", Avg. AUROC: " + evalAll.areaUnderROC(0)
+                                + ", Avg. Weighted AUROC: " + evalAll.weightedAreaUnderROC() + ", Avg. Accuracy: " + accuracy(evalAll) +  " ==== \n");
 
 
             // output evaluation
@@ -1074,21 +1224,31 @@ public class Utils
             System.out.println(eval.toMatrixString("=== Confusion matrix for run " + (i+1) + "/" + runs + " ===\n"));
         } // for
 
+
         // output evaluation
         System.out.println();
         System.out.println(evalAll.toSummaryString("=== " + runs + "-runs Train-test ===", false));
 
         System.out.println("AUROC => " + evalAll.areaUnderROC(0));
         System.out.println("Weighted AUROC => " + evalAll.weightedAreaUnderROC());
+        System.out.println("Accuracy => " + accuracy(evalAll));
         System.out.println("====================================================");
 
         // generate curve
         if(displayROCCurve) toROCCurve(evalAll);
+
+
+        //not possible to get average model to test on set-c, not possible to get the best performing classifier (which already have a build classifier run on it)
+        //if(testOnSeparateHoldOutSet)
+        //{
+        //} // if
     } // simpleTrainTestOverMultipleRuns
 
 
     //helper method to do simply train and test
-    public static void simpleTrainTest(Classifier cls, Instances train, Instances test, int seedToRandomizeTrainingData, boolean displayROCCurve) throws Exception
+    public static void simpleTrainTest(Classifier cls, Instances train, Instances test,  int seedToRandomizeTrainingData,
+                                       boolean displayROCCurve //, Instances separateHoldOutSet, boolean testOnSeparateHoldOutSet
+                                        ) throws Exception
     {
         Random rand = new Random(seedToRandomizeTrainingData);   // create seeded number generator
         Instances randTrainingData = new Instances(train);   // create copy of original data
@@ -1101,11 +1261,14 @@ public class Utils
         //System.out.println(test.toSummaryString());
 
 
+        //make copy
+        Classifier clsCopy = AbstractClassifier.makeCopy(cls);
+                             //Classifier.makeCopy(cls);
 
-        cls.buildClassifier(randTrainingData); //(train);
+        clsCopy.buildClassifier(randTrainingData); //(train);
         // evaluate the classifier and print some statistics
         Evaluation eval = new Evaluation(randTrainingData); //(train);
-        eval.evaluateModel(cls, test);
+        eval.evaluateModel(clsCopy, test);
         //System.out.println(eval.toSummaryString("\nResults\n======\n", false));
         System.out.println(eval.toSummaryString());
         //println(eval.toCumulativeMarginDistributionString());
@@ -1120,10 +1283,38 @@ public class Utils
 
         System.out.println("AUROC => " + eval.areaUnderROC(0));
         System.out.println("Weighted AUROC => " + eval.weightedAreaUnderROC());
+        System.out.println("Accuracy => " + accuracy(eval));
         System.out.println("====================================================");
 
         // generate curve
         if(displayROCCurve) toROCCurve(eval);
+
+
+//        //if testing on a separate data is requested
+//        if(testOnSeparateHoldOutSet)
+//        {
+//            Random random = new Random(seedToRandomizeTrainingData);   // create seeded number generator
+//            Instances randTrainData = new Instances(train);   // create copy of original data
+//            randTrainData.randomize(random);         // randomize data with number generator
+//
+//            System.out.println("Train => " + Utils.classImbalanceOnWekaInstances(randTrainData));
+//            System.out.println("Separate Hold Out Set => " + Utils.classImbalanceOnWekaInstances(separateHoldOutSet));
+//
+//            //make copy
+//            Classifier clsCopy2 = AbstractClassifier.makeCopy(cls);
+//                                //= Classifier.makeCopy(cls);
+//
+//            clsCopy2.buildClassifier(randTrainData); //(train);
+//            // evaluate the classifier and print some statistics
+//            Evaluation evaluation = new Evaluation(randTrainData);
+//            evaluation.evaluateModel(clsCopy2, separateHoldOutSet);
+//
+//            System.out.println("Separate Hold Out Set, AUROC => " + evaluation.areaUnderROC(0));
+//            System.out.println("Separate Hold Out Set, Weighted AUROC => " + evaluation.weightedAreaUnderROC());
+//            System.out.println("Separate Hold Out Set, Accuracy => " + accuracy(evaluation));
+//            System.out.println("====================================================");
+//        } // if
+
     } // simpleTrainTest
 
 
@@ -1178,6 +1369,62 @@ public class Utils
     } // toROCCurve
 
 
+    //does not work as expected
+    public static void visualizeData(Instances data) throws Exception
+    {
+        //data = toProp(data);
+
+
+        // Set up a window for the plot and a Plot2D object
+        JFrame jf = new javax.swing.JFrame("Visualize groups of instances using different glyphs");
+        jf.setSize(500, 400);
+        jf.getContentPane().setLayout(new java.awt.BorderLayout());
+        Plot2D p2D = new weka.gui.visualize.Plot2D();
+        jf.getContentPane().add(p2D, java.awt.BorderLayout.CENTER);
+
+        //configure the plot
+        PlotData2D pd1 = new weka.gui.visualize.PlotData2D(data);
+        //ArrayList<Integer> shapeTypesForInstances = new ArrayList<Integer>(data.numInstances());
+        FastVector shapeTypesForInstances = new FastVector(data.numInstances());
+        //ArrayList<Integer> shapeSizesForInstances = new ArrayList<Integer>(data.numInstances());
+        FastVector shapeSizesForInstances = new FastVector(data.numInstances());
+
+        for (int index = 0; index < data.numInstances(); index ++)
+        {
+            Instance inst = data.instance(index);
+            shapeTypesForInstances.add((int)inst.value(data.attribute("class").index())); // Change attribute giving group indicators here
+            shapeSizesForInstances.add(3);
+        }
+//        int[] types = new int[shapeTypesForInstances.size()];
+//        for(int index = 0; index < types.length; index ++)
+//            types[index] = shapeTypesForInstances.get(index);
+//        int[] sizes = new int[shapeSizesForInstances.size()];
+//        for(int index =0; index < sizes.length; index ++)
+//            sizes[index] = shapeSizesForInstances.get(index);
+
+        pd1.setShapeType(shapeTypesForInstances);
+        pd1.setShapeSize(shapeSizesForInstances);
+        pd1.setCustomColour(java.awt.Color.BLACK);
+        p2D.setMasterPlot(pd1);
+        p2D.setXindex(data.attribute("patient_record_id").index()); // Change attribute name for X axis here
+        p2D.setYindex(data.attribute("class").index()); // Change attribute name for Y axis here
+
+        // Make plot visible
+        jf.setVisible(true);
+    } // visualizeData
+
+
+    //shortcut method to generate the accuracy for the learned model
+    public static double accuracy(Evaluation evaluation)
+    {
+        PredictivePerformanceEvaluator evaluator = new PredictivePerformanceEvaluator(evaluation.numTruePositives(0),
+                evaluation.numFalseNegatives(0), evaluation.numFalsePositives(0),
+                evaluation.numTrueNegatives(0), new String[]{"1", "0"});
+
+        return evaluator.accuracy();
+    } // accuracy
+
+
     //helper method to print weights of instances of each bag
     public static void printInstanceWeightsOfABag(Instance bagInstance)
     {
@@ -1213,9 +1460,44 @@ public class Utils
     } // printBagWeights
 
 
+    //helper method to remove ts from the given data
+    public static Instances removeTs(Instances data)
+    {
+        if(!data.attribute(1).relation().attribute(0).name().contains("ts"))
+        {
+            throw new RuntimeException("First attribute is not timestamp");
+        } // if
+
+        //take copy of the instance before manipulation
+        data = new Instances(data);
+
+        for(int index = 0; index < data.numInstances(); index ++)
+        {
+            //data.instance(index).attribute(0).value(0) => obtains value from patient_record_id attribute in the dataset description, not from the instance
+            //System.out.println(data.instance(index).toString(bagInstance.attribute(0) + "'s Weight => " + data.instance(index).weight());
+            //System.out.println(data.instance(index).toString(bagInstance.attribute(0) + "'s bag => "
+            //        + data.instance(index).relationalValue(1));
+
+            Instances bagOfThisBagInstance = data.instance(index).relationalValue(1);
+
+            //remove ts minutes
+            bagOfThisBagInstance.deleteAttributeAt(0);
+            //System.out.println(bagOfThisBagInstance.numAttributes());
+            //System.out.println("\n====== After deletion =====\n");
+            //printWekaInstances(bagOfThisBagInstance);
+
+            //break;
+        } // for
+
+        //remove attribute name from schema; (tsMinutes)
+        //bag relational is at index 1, and index 0 of that relation is tsMinutes
+        data.attribute(1).relation().deleteAttributeAt(0);
+
+        return data;
+    } // removeTs
+
 
     //helper method to reweight instances inside each bag by ts through keeping multiInstance format
-    //TODO MI data generated by this method cannot be used MI learners (single instances weights are not 1, does not implement WeightedInstancesHandler interface)
     public static Instances reweightInstancesOfEachBagByTs(Instances data) throws Exception
     {
         //take copy of the instance before manipulation
@@ -1254,7 +1536,7 @@ public class Utils
             {
                 Instance thisInnerInstance = bagOfThisBagInstance.instance(innerIndex);
                 double timeStampOfThisInstance = thisInnerInstance.value(0); // ts at index 0
-                thisInnerInstance.setWeight((timeStampOfThisInstance / sumOfTsMinutes) + 1);
+                thisInnerInstance.setWeight((timeStampOfThisInstance / sumOfTsMinutes) ); // TODO +1 disabled
             } // for
 
 
@@ -1268,6 +1550,7 @@ public class Utils
             //} // for
 
 
+            //remove ts minutes
             bagOfThisBagInstance.deleteAttributeAt(0);
             //System.out.println(bagOfThisBagInstance.numAttributes());
             //System.out.println("\n====== After deletion =====\n");
@@ -1276,7 +1559,8 @@ public class Utils
             //break;
         } // for
 
-        //remove attribute name from schema
+        //remove attribute name from schema; (tsMinutes)
+        //bag relational is at index 1, and index 0 of that relation is tsMinutes
         data.attribute(1).relation().deleteAttributeAt(0);
 
         //System.out.println(new Instances(data, 0, 100));
@@ -1349,7 +1633,7 @@ public class Utils
                 {
                     double tsMinutes = Double.parseDouble(instance.toString(instance.attribute(1)));
                     double weight = tsMinutes / sumOfTsMinutes;
-                    instance.setWeight(weight + 1); //TODO weightedInstanceHandlers cannot handle weighted data interestingly in weka 3.9.4
+                    instance.setWeight(weight); //TODO disabled +1 works in 3.7.0 and 3.7.2; weightedInstanceHandlers cannot handle weighted data interestingly in weka 3.9.4
                 } // for
 
                 //instanceList.forEach(System.out::println);
@@ -1361,7 +1645,14 @@ public class Utils
 
         //ts should be removed before bag_id attribute
         if(removeTs)
-            newData.deleteAttributeAt(1);
+        {
+            if (!newData.attribute(1).relation().attribute(0).name().contains("ts"))
+            {
+                System.out.println("There is no ts attribute, not removing ts");
+            } // if
+            else
+                newData.deleteAttributeAt(1);
+        }
 
         if(!keepPropFormat) // attribute 0 is a bag_id attribute (contains all bag_ids in {})
         {
@@ -1372,6 +1663,7 @@ public class Utils
 
         return newData;
     } // transformMiDataToProp
+
 
 
     //transform List<LabeledPoint> to Instances
@@ -1408,7 +1700,7 @@ public class Utils
 
         // Create an empty training set
         Instances newData = new Instances("new_relation" //propData.relationName()
-                                , fvWekaAttributes, 10);
+                , fvWekaAttributes, 10);
         // Set class index
         newData.setClassIndex(fvWekaAttributes.size() - 1);
 
@@ -1420,8 +1712,8 @@ public class Utils
             Instance thisPropInstance = propData.instance(i);
 
             // Create the instance, number of attributes will be #features + label
-            Instance instance = new Instance(attributes.size() + 1); // weka 3.7.0
-                                //new DenseInstance(attributes.size() + 1);
+            Instance instance = //new Instance(attributes.size() + 1); // weka 3.7.0
+                                new DenseInstance(attributes.size() + 1);
 
             //class label of labeled point
             double lbl = thisPropInstance.classValue();
@@ -1431,6 +1723,117 @@ public class Utils
 
 
             for (int index = 0; index < thisPropInstance.numAttributes() - 1; index++)
+            {
+                instance.setValue((Attribute) fvWekaAttributes
+                        .elementAt(index), Double.parseDouble(thisPropInstance.toString(thisPropInstance.attribute(index))));
+
+                instance.setWeight(thisPropInstance.weight());
+            } // for
+
+            // add the instance
+            newData.add(instance);
+        } // for
+
+						 /*instance.setValue((Attribute)fvWekaAttributes.elementAt(0), 1.0);
+						 instance.setValue((Attribute)fvWekaAttributes.elementAt(1), 0.5);
+						 instance.setValue((Attribute)fvWekaAttributes.elementAt(2), "gray");
+						 instance.setValue((Attribute)fvWekaAttributes.elementAt(3), "positive");*/
+
+        return newData;
+    } // buildInstances
+
+
+
+
+    //transform List<LabeledPoint> to Instances
+    private static Instances buildInstances(Instances propData, HashSet<Integer> instanceIndicesToDelete, HashSet<String> instanceToRemoveByBagID)
+    {
+        //create an empty arraylist first
+        ArrayList<Attribute> attributes = new ArrayList<Attribute>();
+
+        // for one labeledPoint in a partition
+        // do get feature vector and create attributes from them
+
+//        List<String> attrValues = new ArrayList<>();
+//        for(int index = 0; index < propData.attribute(0).numValues(); index++)
+//        {
+//            String bagId = propData.attribute(0).value(index);
+//            //if(!instanceToRemoveByBagID.contains(bagId))
+//                attrValues.add(bagId);
+//        }
+
+        //weka 3.7.0
+        FastVector fAttrValues = new FastVector();
+        for(int index = 0; index < propData.attribute(0).numValues(); index++)
+        {
+            String bagId = propData.attribute(0).value(index);
+            //if(!instanceToRemoveByBagID.contains(bagId))
+            fAttrValues.addElement(bagId);
+        }
+
+
+        Attribute attr = new Attribute(propData.attribute(0).name(), fAttrValues, propData.attribute(0).getMetadata());
+        attributes.add(attr);
+        for (int i = 1; i < propData.numAttributes() - 1; i++)
+        {
+            // attribute name will be x1, x2, x3 etc...
+            Attribute attribute = new Attribute(propData.attribute(i).name()//.replace("bag_", "")
+                                );
+            attributes.add(attribute);
+        } // for
+
+        // Declare the class attribute along with its values
+        FastVector fvClassVal = new FastVector(2);
+        fvClassVal.addElement("1");
+        fvClassVal.addElement("0");
+        Attribute label = new Attribute("class", fvClassVal);
+
+        // Declare the feature vector, first add class label attribute
+        FastVector fvWekaAttributes = new FastVector(4);
+        //then for each attribute in an attributes add them to wekaAttributes
+        for (Attribute attribute : attributes)
+        {
+            fvWekaAttributes.addElement(attribute);
+        } // for
+        fvWekaAttributes.addElement(label);
+
+
+        // Create an empty training set
+        Instances newData = new Instances(//"new_relation"
+                                                propData.relationName()
+                                , fvWekaAttributes, 10);
+        // Set class index
+        newData.setClassIndex(fvWekaAttributes.size() - 1);
+
+
+        //for each labeledPoint in partition, create an instance
+        //from that labeled point
+        for (int i = 0; i < propData.numInstances(); i++)
+        {
+            Instance thisPropInstance = propData.instance(i);
+
+            if(!(instanceIndicesToDelete == null || instanceIndicesToDelete.isEmpty()) && instanceIndicesToDelete.contains(i))
+                continue; // do not add this intance
+
+
+            String bagId = thisPropInstance.toString(thisPropInstance.attribute(0));
+            if(!(instanceToRemoveByBagID == null || instanceToRemoveByBagID.isEmpty()) && instanceToRemoveByBagID.contains(bagId))
+                continue; // do not add this instance
+
+            // Create the instance, number of attributes will be #features + label
+            Instance instance = //new Instance(attributes.size() + 1); // weka 3.7.0
+                                new DenseInstance(attributes.size() + 1);
+
+            //class label of labeled point
+            double lbl = thisPropInstance.classValue();
+
+            //first set class label for the attribute
+            instance.setValue((Attribute)fvWekaAttributes.elementAt(fvWekaAttributes.size() - 1), lbl);
+
+            instance.setValue((Attribute) fvWekaAttributes
+                    .elementAt(0), thisPropInstance.toString(thisPropInstance.attribute(0)));
+
+            for (int index = 1; index < thisPropInstance.numAttributes() - 1; index++)
             {
                 instance.setValue((Attribute) fvWekaAttributes
                         .elementAt(index), Double.parseDouble(thisPropInstance.toString(thisPropInstance.attribute(index))));
@@ -1497,4 +1900,295 @@ public class Utils
                 + "% - " +  format("#.##", RoundingMode.HALF_UP,100 * numNegativeInstances / (data.numInstances() * 1.0f)) + "%";
     } // classImbalanceOnWekaInstances
 
+
+
+    //helper method to undersample majority class to the size of minority class (50% - 50% imbalance)
+    public static Instances underSample(Instances train) throws Exception
+    {
+        //Undersample majority class
+        //Instead of using weka.filters.supervised.instance.Resample,
+        // a much easier way to achieve the same effect is to use weka.filters.supervised.SpreadSubsample instead, with distributionSpread=1.0:
+        String[] filterOptions = new String[2];
+        filterOptions[0] = "-M";                                               // "distributionSpread"
+        filterOptions[1] = "1.0";    //1.0 for 50%-50%, 1.5 for 40%-60%, 2.0 for 1/3, 2/3, 2.333 for 30%-70%
+        SpreadSubsample underSampleFilter = new SpreadSubsample();              // a new instance of filter
+        underSampleFilter.setOptions(filterOptions);                           // set options
+        System.out.println(underSampleFilter.getClass().getName() + " filter options: " + Arrays.toString(underSampleFilter.getOptions()));
+        underSampleFilter.setInputFormat(train);                                // inform the filter about the dataset **AFTER** setting options
+        train = Filter.useFilter(train, underSampleFilter);         // apply filter
+        System.out.println("After undersampling Train => " + Utils.classImbalanceOnWekaInstances(train));
+
+        return train;
+    } // underSample
+
+
+    //helper method to oversample minority class roughly to the size of majority class
+    public static Instances overSample(Instances train) throws Exception
+    {
+        //Weka code
+        //int sampleSize = (int)((m_SampleSizePercent / 100.0) * ((1 - m_BiasToUniformClass) * numInstancesPerClass[i] +
+        //        m_BiasToUniformClass * data.numInstances() / numActualClasses));
+
+        int numPositiveInstances = 0;
+        int numNegativeInstances = 0;
+
+        //for each instance check its class and update counters
+        for(int index = 0; index < train.numInstances(); index ++)
+        {
+            Instance thisInstance = train.instance(index);
+            String bagId = thisInstance.toString(thisInstance.attribute(0));
+            //System.out.println(bagId);
+
+            if(Double.compare(thisInstance.value(train.classIndex()), 0.0) == 0)
+            {
+                numPositiveInstances++;
+            }
+            else
+            {
+                numNegativeInstances++;
+            }
+        } // for
+
+
+        int bigger = Math.max(numPositiveInstances, numNegativeInstances);
+
+        double sampleSizePercent = (bigger / (train.numInstances() * 1.0)) * 100 * 2; // multiple by 100 for percent, 2 for Y/2
+
+        //oversample
+        train = reSample(sampleSizePercent, train);
+
+        System.out.println("After oversampling Train => " + Utils.classImbalanceOnWekaInstances(train));
+        return train;
+    } // overSample
+
+
+    //TODO dropping performance, might be a bug of Weka.
+    //helper method to oversample the minority class to the size of majority class
+    public static Instances overSampleByKeepingMajorityClassUntouched(Instances train) throws Exception
+    {
+        //Weka code
+        //int sampleSize = (int)((m_SampleSizePercent / 100.0) * ((1 - m_BiasToUniformClass) * numInstancesPerClass[i] +
+        //        m_BiasToUniformClass * data.numInstances() / numActualClasses));
+
+
+        int numPositiveInstances = 0;
+        int numNegativeInstances = 0;
+
+        Instances positives = new Instances(train); positives.delete();
+        Instances negatives = new Instances(train); negatives.delete();
+        //HashSet<String> negativeBagIds = new HashSet<>();
+        //HashSet<String> positiveBagIds = new HashSet<>();
+        //List<Integer> negativeIndices = new ArrayList<>();
+        //HashSet<Integer> positiveIndices = new HashSet<>();
+
+        //for each instance check its class and update counters
+        for(int index = 0; index < train.numInstances(); index ++)
+        {
+            Instance thisInstance = train.instance(index);
+            String bagId = thisInstance.toString(thisInstance.attribute(0));
+            //System.out.println(bagId);
+
+            if(Double.compare(thisInstance.value(train.classIndex()), 0.0) == 0)
+            {
+                //negatives.remove(thisInstance);
+                positives.add(thisInstance);
+                //positiveBagIds.add(bagId);
+                numPositiveInstances++;
+                //positiveIndices.add(index);
+            }
+            else
+            {
+                //positives.remove(thisInstance);
+                negatives.add(thisInstance);
+                //negativeBagIds.add(bagId);
+                //negativeIndices.add(index);
+                numNegativeInstances++;
+            }
+        } // for
+
+        //Error:
+        //for(int index : positiveIndices)
+        //    train.delete(index);
+
+//        Iterator<Instance> itr = train.iterator();
+//        int count = 0;
+//        while (itr.hasNext())
+//        {
+//            if(positiveIndices.contains(count))
+//                itr.remove();
+//            count ++;
+//        }
+//
+//        System.out.println(train.numInstances());
+//        System.exit(0);
+
+
+
+//        //first negatives then positives
+//        train.sort(new Comparator<Instance>() {
+//            @Override
+//            public int compare(Instance t1, Instance t2)
+//            {
+//                return Double.compare(t1.value(train.classIndex()), t2.value(train.classIndex()));
+//            }
+//        });
+//
+//
+//        Instances miPositives = new Instances(train, 0, numPositiveInstances);
+//        //miPositives.forEach(instance -> System.out.println(instance.value(instance.classIndex())));
+//        Instances miNegatives = new Instances(train, numPositiveInstances, numNegativeInstances);
+//        System.out.println("NumPositives: " + miPositives.numInstances());
+//        System.out.println("NumNegatives : " + miNegatives.numInstances());
+////        //System.exit(0);
+
+
+//        // handle the case, when negative is a minority class
+//        Instances propPositives = toProp(positives);
+//        propPositives = buildInstances(propPositives, null, negativeBagIds);
+//        //System.out.println(propPositives);
+//        Instances propNegatives = toProp(negatives);
+//        propNegatives = buildInstances(propNegatives, null, positiveBagIds);
+//        //System.out.println(propNegatives);
+//
+//        Instances miPositives = toMi(propPositives);
+//        Instances miNegatives = toMi(propNegatives);
+//        System.out.println("NumPositives: " + miPositives.numInstances());
+//        System.out.println("NumNegatives : " + miNegatives.numInstances());
+//        //System.exit(0);
+
+
+
+        Instances miPositives = positives;
+        Instances miNegatives = negatives;
+        System.out.println("NumPositives: " + miPositives.numInstances());
+        System.out.println("NumNegatives : " + miNegatives.numInstances());
+
+
+        int bigger = Math.max(numPositiveInstances, numNegativeInstances);
+
+        double sampleSizePercent = (bigger / (
+                            //train.numInstances()
+                            miPositives.numInstances()
+                            * 1.0)) * 100
+                            ; // for untouched majority class
+                            //* 2; // multiple by 100 for percent, 2 for Y/2
+
+
+        //System.out.println((sampleSizePercent / 100) * (1.0 * train.numInstances() / train.numClasses()));
+        //System.exit(0);
+
+        //oversample
+        miPositives = reSample(sampleSizePercent, miPositives);
+
+
+        System.out.println("After oversampling Train (before adding negatives) => " + Utils.classImbalanceOnWekaInstances(miPositives));
+
+
+        //causing error, it might be because, miPositives are oversampled instances
+//        for(int index = 0; index < miNegatives.numInstances(); index ++)
+//            miPositives.add(miNegatives.instance(index));
+
+        //works when positives are added on top of negatives
+        for(int index = 0; index < miPositives.numInstances(); index ++)
+            miNegatives.add(miPositives.instance(index));
+        miPositives = miNegatives;
+        System.out.println("After adding negatives => " + Utils.classImbalanceOnWekaInstances(miPositives));
+
+
+//        System.out.println(new Instances(miPositives, 0, 10));
+//        miPositives = toProp(miPositives);
+//        miPositives = toMi(miPositives);
+
+
+        //set the weight of each bag to 1
+        for(int index = 0; index < miPositives.numInstances(); index++)
+            miPositives.instance(index).setWeight(1);
+
+
+        List<String> attrValues = new ArrayList<>();
+        for(int index = 0; index < miPositives.attribute(0).numValues(); index++)
+        {
+            String bagId = miPositives.attribute(0).value(index);
+            //if(!instanceToRemoveByBagID.contains(bagId))
+            attrValues.add(bagId);
+        }
+        System.out.println("New number of bags: " + attrValues.size());
+        System.out.println("Num instances: " + miPositives.numInstances());
+
+
+        System.out.println("After oversampling Train => " + Utils.classImbalanceOnWekaInstances(miPositives));
+
+        return miPositives;
+    } // overSampleByKeepingMajorityClassUntouched
+
+
+    //method to resample the given data
+    private static Instances reSample(double sampleSizePercent, Instances data) throws Exception
+    {
+        //To oversample the minority class so that both classes have the same number of instances,
+        // use the supervised Resample filter with noReplacement=false, biasToUniformClass=1.0,
+        // and sampleSizePercent=Y, where Y/2 is (approximately) the percentage of data that belongs to the majority class.
+        Resample filter = new Resample();
+        filter.setNoReplacement(false);
+        filter.setBiasToUniformClass(1);
+        filter.setSampleSizePercent(sampleSizePercent);
+        System.out.println("ReSample Filter options: " + Arrays.toString(filter.getOptions()));
+        filter.setInputFormat(data);
+        return Filter.useFilter(data, filter);        // apply filter
+    } // reSample
+
+
+
+    //helper method to convert mi data to prop
+    private static Instances toProp(Instances miData) throws Exception
+    {
+        //apply mi to prop
+        MultiInstanceToPropositional miToProp = new MultiInstanceToPropositional();
+        //-A <num>
+        //  The type of weight setting for each prop. instance:
+        //0.weight = original single bag weight /Total number of
+        //prop. instance in the corresponding bag;
+        //1.weight = 1.0;
+        //2.weight = 1.0/Total number of prop. instance in the
+        //corresponding bag;
+        //3. weight = Total number of prop. instance / (Total number
+        //of bags * Total number of prop. instance in the
+        //corresponding bag).
+        //(default:0)
+        miToProp.setOptions(weka.core.Utils.splitOptions("-A 1")); // keep the original weighting
+        miToProp.setInputFormat(miData);
+        Instances propData = Filter.useFilter(miData, miToProp);
+
+        return propData;
+    } // toProp
+
+
+    private static Instances toMi(Instances propData) throws Exception
+    {
+        PropositionalToMultiInstance propToMi = new PropositionalToMultiInstance();
+        //propToMi.setDoNotWeightBags(true);
+        propToMi.setOptions(weka.core.Utils.splitOptions("-no-weights")); // weka 3.7.0
+        propToMi.setInputFormat(propData);
+        Instances miData = Filter.useFilter(propData, propToMi);
+        return miData;
+    } // toMi
+
+
+    //helper method to oversample with smote
+    //TODO SMOTE is not available for MI data giving null-pointer exception on distance calculation.
+    public static Instances smote(Instances train) throws Exception
+    {
+        //Instances propTrain = toProp(train);
+
+        SMOTE smote = new SMOTE();
+        System.out.println("Filter options: " + Arrays.toString(smote.getOptions()));
+        smote.setInputFormat(train);
+        train = Filter.useFilter(train, smote);
+
+        //Instances miTrain = toMi(propTrain);
+
+        System.out.println("After oversampling Train => " + Utils.classImbalanceOnWekaInstances(train));
+
+        return train;
+    } // smote
 } // class Utils

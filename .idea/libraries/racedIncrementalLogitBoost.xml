@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="racedIncrementalLogitBoost">
-    <CLASSES>
-      <root url="jar://$PROJECT_DIR$/lib/racedIncrementalLogitBoost.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>

@@ -55,7 +55,7 @@ public class PredictivePerformanceEvaluator
         //recall is tp / (tp + fp)
         double recall = truePositives / (truePositives + falseNegatives);
 
-        return Utils.format("#.##", RoundingMode.HALF_UP,
+        return Utils.format("#.####", RoundingMode.HALF_UP,
                 (float) recall);
     } // recall
 
@@ -65,7 +65,7 @@ public class PredictivePerformanceEvaluator
         //fmeasure is 2 * precision * recall / (precision + recall)
         double fMeasure = 2 * precision() * recall() / (precision() + recall());
 
-        return Utils.format("#.##", RoundingMode.HALF_UP,
+        return Utils.format("#.####", RoundingMode.HALF_UP,
                 (float) fMeasure);
     } // fMeasure
 
@@ -76,8 +76,9 @@ public class PredictivePerformanceEvaluator
         double accuracy = (truePositives + trueNegatives)
                 / (truePositives + trueNegatives + falsePositives + falseNegatives);
 
-        return Utils.format("#.##", RoundingMode.HALF_UP,
-                (float) accuracy);
+        return accuracy;
+        //return Utils.format("#.####", RoundingMode.HALF_UP,
+        //        (float) accuracy);
     } // accuracy
 
 

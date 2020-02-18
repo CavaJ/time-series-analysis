@@ -10,9 +10,10 @@
     <orderEntry type="library" name="org.apache.commons:commons-io:1.3.2" level="project" />
     <orderEntry type="library" name="org.apache.commons:commons-lang3:3.9" level="project" />
     <orderEntry type="library" name="org.apache.poi:poi:4.1.0" level="project" />
-    <orderEntry type="library" name="realAdaBoost" level="project" />
-    <orderEntry type="library" name="multiBoostAB" level="project" />
-    <orderEntry type="library" name="racedIncrementalLogitBoost" level="project" />
-    <orderEntry type="library" name="weka-3.7.0" level="project" />
+    <orderEntry type="library" name="ensemble" level="project" />
+    <orderEntry type="library" name="stackingC" level="project" />
+    <orderEntry type="library" name="SMOTE" level="project" />
+    <orderEntry type="library" name="mil" level="project" />
+    <orderEntry type="library" name="weka-3.7.2" level="project" />
   </component>
 </module>

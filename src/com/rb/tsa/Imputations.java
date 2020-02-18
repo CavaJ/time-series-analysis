@@ -34,6 +34,7 @@ public class Imputations
         for(MTSE mtse : mtseList)
             dcList.add(mtse.deepCopy());
 
+        System.out.println(imputeMethod + " started...");
 
         switch(imputeMethod)
         {
@@ -149,9 +150,67 @@ public class Imputations
                 } // for each mtse
                 break;
             case LIPTON_FORWARD_FILLING_IMPUTATION:
-                //TODO implement the imputation method from the paper of Lipton et al.
+                Map<String, Float> varMedianMap
+                        = Utils.mediansOfVariables(dcList.subList(trainingSetStartIndexIncEndIndexEx[0], trainingSetStartIndexIncEndIndexEx[1]));
+                for(MTSE mtse : dcList)
+                {
+                    //obtain var values in ts order
+                    Map<String, List<Float>> varValuesInTsOrder = mtse.getVarValuesInTsOrder();
+                    Map<String, List<Integer>> maskingsInTsOrder = mtse.getMaskingsInTsOrder();
+                    for(String var : varValuesInTsOrder.keySet())
+                    {
+                        float medianForThisVar = varMedianMap.get(var);
+
+                        List<Float> valuesInTsOrderForThisVar = varValuesInTsOrder.get(var);
+                        List<Integer> maskingsInTsOrderForThisVar = maskingsInTsOrder.get(var);
+
+                        //masking value with zero represent missing value
+                        List<Integer> missingValueIndices = new ArrayList<>();
+                        for(int index = 0; index < maskingsInTsOrderForThisVar.size(); index ++)
+                        {
+                            int masking = maskingsInTsOrderForThisVar.get(index);
+                            if(masking == 0) missingValueIndices.add(index);
+                        } // for
+
+
+                        //for each missing value index check whether there is a measurement before that
+                        OUTER: for(int missingValueIndex : missingValueIndices)
+                        {
+                            if(missingValueIndex == 0)
+                            {
+                                valuesInTsOrderForThisVar.set(missingValueIndex, medianForThisVar);
+                                continue; // go to the next missing value
+                            }
+
+
+                            for (int presentValueIndex = missingValueIndex - 1; presentValueIndex >= 0; presentValueIndex --)
+                            {
+                                if(maskingsInTsOrderForThisVar.get(presentValueIndex) == 1) // if there is a previously recorded measurement
+                                {
+                                    float previouslyRecordedValue = valuesInTsOrderForThisVar.get(presentValueIndex);
+                                    valuesInTsOrderForThisVar.set(missingValueIndex, previouslyRecordedValue);
+                                    continue OUTER; // break this loop, because previous existing value found, go to the next missing value
+                                } // if
+                            } // for each presentValueIndex
+
+                            //at this point no previously recorded measurement found, set the median as a value
+                            valuesInTsOrderForThisVar.set(missingValueIndex, medianForThisVar);
+                        } // for each missing value index
+
+
+                        //update the map with changes
+                        varValuesInTsOrder.put(var, valuesInTsOrderForThisVar);
+                    } // for each var
+
+
+                    //update the mtse
+                    mtse.setVarValuesInTsOrder(varValuesInTsOrder);
+                } // for each mtse
                 break;
         } // switch
+
+
+        System.out.println(imputeMethod + " finished...");
 
         return dcList;
     } // impute

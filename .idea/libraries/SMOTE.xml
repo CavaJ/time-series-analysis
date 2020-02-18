@@ -1,7 +1,7 @@
 <component name="libraryTable">
-  <library name="multiBoostAB">
+  <library name="SMOTE">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/lib/multiBoostAB.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/SMOTE.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

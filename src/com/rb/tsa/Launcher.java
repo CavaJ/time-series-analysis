@@ -3,16 +3,15 @@ package com.rb.tsa;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
-import weka.classifiers.Classifier;
+import weka.classifiers.mi.*;
 import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
-import weka.filters.Filter;
-import weka.filters.supervised.instance.SpreadSubsample;
 
 import java.io.File;
 import java.math.RoundingMode;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class Launcher
 {
@@ -138,30 +137,372 @@ public class Launcher
         //    System.out.print("\"" + varName + "\", ");
 
 
-//        List<String> setAVarJoinFilePaths = Utils.listFilesFromLocalPath(setADir + File.separator + "prepro" + File.separator + "varJoin", false);
-//        List<String> setBVarJoinFilePaths = Utils.listFilesFromLocalPath(setBDir + File.separator + "prepro" + File.separator + "varJoin", false);
-//        List<String> setCVarJoinFilePaths = Utils.listFilesFromLocalPath(setCDir + File.separator + "prepro" + File.separator + "varJoin", false);
-//        List<String> allVarJoinFilePaths = new ArrayList<>();
-//        allVarJoinFilePaths.addAll(setAVarJoinFilePaths);
-//        allVarJoinFilePaths.addAll(setBVarJoinFilePaths);
-//        allVarJoinFilePaths.addAll(setCVarJoinFilePaths);
-//
-//
-//        long start = System.currentTimeMillis();
-//        float fMissingValuePlaceHolder = -2.0f;
-//        List<MTSE> mtses = new ArrayList<>();
-//
-//        //obtain multivariate time series from each file
-//        for(String filePath : allVarJoinFilePaths)
-//        {
-//            MTSE mtse
-//                    = MTSE.fromFile(Dataset.PhysioNet, filePath, ",", fMissingValuePlaceHolder);
-//            //println(mtse.toVerticalString());
-//
-//            mtses.add(mtse);
-//            //break;
-//        } // for
-//
+        List<String> setAVarJoinFilePaths = Utils.listFilesFromLocalPath(setADir + File.separator + "prepro" + File.separator + "varJoin", false);
+        List<String> setBVarJoinFilePaths = Utils.listFilesFromLocalPath(setBDir + File.separator + "prepro" + File.separator + "varJoin", false);
+        //List<String> setCVarJoinFilePaths = Utils.listFilesFromLocalPath(setCDir + File.separator + "prepro" + File.separator + "varJoin", false);
+        List<String> allVarJoinFilePaths = new ArrayList<>();
+        allVarJoinFilePaths.addAll(setAVarJoinFilePaths);
+        allVarJoinFilePaths.addAll(setBVarJoinFilePaths);
+        //allVarJoinFilePaths.addAll(setCVarJoinFilePaths);
+
+
+        long start = System.currentTimeMillis();
+        float fMissingValuePlaceHolder = -2.0f;
+        List<MTSE> mtses = new ArrayList<>();
+
+        //obtain multivariate time series from each file
+        for(String filePath : allVarJoinFilePaths)
+        {
+            MTSE mtse
+                    = MTSE.fromFile(Dataset.PhysioNet, filePath, ",", fMissingValuePlaceHolder);
+            //println(mtse.toVerticalString());
+
+            mtses.add(mtse);
+            //break;
+        } // for
+        long end = System.currentTimeMillis();
+        println("It took " + TimeUnit.MILLISECONDS.toSeconds(end-start) + " seconds for reading all mtses");
+
+
+        //run mean and forward filing experiment
+        try
+        {
+            //---------- FORWARD IMPUTATION, train/test 10 runs ---------
+            //SMI-LR
+            Experiments.run_SMI_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+                                            setBVarJoinFilePaths.size(), null,
+                                            fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, false);
+
+
+            //SMI-RF
+            Experiments.run_SMI_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+                                            setBVarJoinFilePaths.size(), null,
+                                            fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, false);
+
+
+            //W_SMI-LR
+            Experiments.run_W_SMI_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+                                            setBVarJoinFilePaths.size(), null,
+                                            fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, false);
+
+
+            //W_SMI-RF
+            Experiments.run_W_SMI_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+                                            setBVarJoinFilePaths.size(), null,
+                                            fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, false);
+
+
+            //BG-SMI-LR
+            Experiments.run_BG_SMI_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+                                            setBVarJoinFilePaths.size(), null,
+                                            fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, false);
+
+
+            //RB-SMI-RF
+            Experiments.run_RB_SMI_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+                                            setBVarJoinFilePaths.size(), null,
+                                            fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, false);
+
+
+            //W_BG-SMI-LR
+            Experiments.run_W_BG_SMI_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+                                            setBVarJoinFilePaths.size(), null,
+                                            fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, false);
+
+
+            //W_RB-SMI-RF
+            Experiments.run_W_RB_SMI_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+                                            setBVarJoinFilePaths.size(), null,
+                                            fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, false);
+
+
+
+
+
+
+
+
+            //---------- MEAN IMPUTATION, CV on Set-A ------
+            ////MILR
+            //Experiments.run_MILR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+            //Experiments.run_BG_MILR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+            //Experiments.run_W_MILR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+            //Experiments.run_W_BG_MILR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+            ////MIW-LR
+            //Experiments.run_MIW_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////MIW-RF
+            //Experiments.run_MIW_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //         setBVarJoinFilePaths.size(), null,
+            //         fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////W-MIW-LR
+            //Experiments.run_W_MIW_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //        setBVarJoinFilePaths.size(), null,
+            //        fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////W-MIW-RF
+            //Experiments.run_W_MIW_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //        setBVarJoinFilePaths.size(), null,
+            //        fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////RB-MIW-LR
+            //Experiments.run_RB_MIW_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+            ////RB-MIW-RF
+            //Experiments.run_RB_MIW_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////W_RB-MIW-LR
+            //Experiments.run_W_RB_MIW_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+            ////W_RB-MIW-RF
+            //Experiments.run_W_RB_MIW_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////MIB-LR
+            //Experiments.run_MIB_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////MIB-RF
+            //Experiments.run_MIB_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+            ////W_MIB-LR
+            //Experiments.run_W_MIB_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////W_MIB-RF
+            //Experiments.run_W_MIB_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+
+            ////SMI-LR
+            //Experiments.run_SMI_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////SMI-RF
+            //Experiments.run_SMI_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////W_SMI-LR
+            //Experiments.run_W_SMI_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////W_SMI-RF
+            //Experiments.run_W_SMI_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////BG-SMI-LR
+            //Experiments.run_BG_SMI_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////RB-SMI-RF
+            //Experiments.run_RB_SMI_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////W_BG-SMI-LR
+            //Experiments.run_W_BG_SMI_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+            ////W_RB-SMI-RF
+            //Experiments.run_W_RB_SMI_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION, true);
+
+
+
+
+
+            //---------- FORWARD IMPUTATION, CV on Set-A ------
+            ////MILR
+            //Experiments.run_MILR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+            //Experiments.run_BG_MILR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+            //Experiments.run_W_MILR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+            //Experiments.run_W_BG_MILR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+            ////MIW-LR
+            //Experiments.run_MIW_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////MIW-RF
+            //Experiments.run_MIW_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////W-MIW-LR
+            //Experiments.run_W_MIW_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////W-MIW-RF
+            //Experiments.run_W_MIW_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////RB-MIW-LR
+            //Experiments.run_RB_MIW_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+            ////RB-MIW-RF
+            //Experiments.run_RB_MIW_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////W_RB-MIW-LR
+            //Experiments.run_W_RB_MIW_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+            ////W_RB-MIW-RF
+            //Experiments.run_W_RB_MIW_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////MIB-LR
+            //Experiments.run_MIB_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////MIB-RF
+            //Experiments.run_MIB_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+            ////W_MIB-LR
+            //Experiments.run_W_MIB_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////W_MIB-RF
+            //Experiments.run_W_MIB_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+
+            ////SMI-LR
+            //Experiments.run_SMI_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////SMI-RF
+            //Experiments.run_SMI_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////W_SMI-LR
+            //Experiments.run_W_SMI_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////W_SMI-RF
+            //Experiments.run_W_SMI_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////BG-SMI-LR
+            //Experiments.run_BG_SMI_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////RB-SMI-RF
+            //Experiments.run_RB_SMI_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////W_BG-SMI-LR
+            //Experiments.run_W_BG_SMI_LR_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                                setBVarJoinFilePaths.size(), null,
+            //                                fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+
+            ////W_RB-SMI-RF
+            //Experiments.run_W_RB_SMI_RF_SS(Dataset.PhysioNet, mtses, outcomes, varRanges, setAVarJoinFilePaths.size(),
+            //                    setBVarJoinFilePaths.size(), null,
+            //                    fMissingValuePlaceHolder, Imputations.ImputeMethod.LIPTON_FORWARD_FILLING_IMPUTATION, true);
+
+            System.exit(0);
+        } catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+
+
 //        Imputations imputations = Imputations.getInstance();
 //        List<MTSE> imtses
 //                = imputations.impute(mtses, Imputations.ImputeMethod.MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION,
@@ -290,15 +631,18 @@ public class Launcher
             //System.exit(0);
 
 
-            //setAData = Utils.reweightInstancesOfEachBagByTs(setAData);
+            setAData = Utils.reweightInstancesOfEachBagByTs(setAData);
+            //setAData = Utils.removeTs(setAData);
             //Utils.printWekaInstances(setAData, 1);
-            //Utils.printInstanceWeightsOfABag(setAData.instance(0));
+            Utils.printInstanceWeightsOfABag(setAData.instance(0));
             //Utils.printBagWeights(setAData, 0, 10);
+            //println(new Instances(setAData, 0, 100));
             //System.exit(0);
             //println("====================================================");
-            //setBData = Utils.reweightInstancesOfEachBagByTs(setBData);
+            setBData = Utils.reweightInstancesOfEachBagByTs(setBData);
+            //setBData = Utils.removeTs(setBData);
             //Utils.printWekaInstances(setBData, 1);
-            //Utils.printInstanceWeightsOfABag(setBData.instance(0));
+            Utils.printInstanceWeightsOfABag(setBData.instance(0));
             //Utils.printBagWeights(setBData, 0, 10);
             //System.exit(0);
 
@@ -308,20 +652,18 @@ public class Launcher
 
 
             Instances train = new Instances(setAData);
-            println("Before undersampling Train => " + Utils.classImbalanceOnWekaInstances(train));
+            println("Before under(over)sampling Train => " + Utils.classImbalanceOnWekaInstances(train));
 
-            //Undersample majority class
-            //Instead of using weka.filters.supervised.instance.Resample,
-            // a much easier way to achieve the same effect is to use weka.filters.supervised.SpreadSubsample instead, with distributionSpread=1.0:
-            String[] filterOptions = new String[2];
-            filterOptions[0] = "-M";                                               // "distributionSpread"
-            filterOptions[1] = "1.0";    //1.0 for 50%-50%, 1.5 for 40%-60%, 2.0 for 1/3, 2/3, 2.333 for 30%-70%
-            SpreadSubsample underSampleFilter = new SpreadSubsample();              // a new instance of filter
-            underSampleFilter.setOptions(filterOptions);                           // set options
-            println("Filter options: " + Arrays.toString(underSampleFilter.getOptions()));
-            underSampleFilter.setInputFormat(train);                                // inform the filter about the dataset **AFTER** setting options
-            train = Filter.useFilter(train, underSampleFilter);         // apply filter
-            println("After undersampling Train => " + Utils.classImbalanceOnWekaInstances(train));
+            //train = Utils.underSample(train);
+            //train = Utils.overSampleByKeepingMajorityClassUntouched(train); // drops performance
+            train = Utils.overSample(train); // increases the size of minority class roughly to the size of majority class (caveat: will sample majority class with replacement, too).
+            Utils.printInstanceWeightsOfABag(train.instance(0));
+            Utils.printBagWeights(train, 0, 10);
+            //Utils.visualizeData(train);
+            //train = Utils.smote(train);
+            //Utils.printInstanceWeightsOfABag(train.instance(0));
+            //println(new Instances(train, 3446, 10));
+            //System.exit(0);
 
 
             Instances test = new Instances(setBData);
@@ -341,23 +683,23 @@ public class Launcher
 
 
             //TRANSFORM TO PROP AND REWEIGHT
-            train = Utils.transformMIDataToProp(train, true, false, true);
-            println("After applying miToProp filter Train => " + Utils.classImbalanceOnWekaInstances(train));
+            //train = Utils.transformMIDataToProp(train, true, false, true);
+            //println("After applying miToProp filter Train => " + Utils.classImbalanceOnWekaInstances(train));
             //println(new Instances(train, 0, 100));
             //println("===========================================");
             //System.exit(0);
-            test = Utils.transformMIDataToProp(test, true, false, true);
-            println("After applying miToProp filter Test => " + Utils.classImbalanceOnWekaInstances(test));
+            //test = Utils.transformMIDataToProp(test, true, false, true);
+            //println("After applying miToProp filter Test => " + Utils.classImbalanceOnWekaInstances(test));
             //println(new Instances(test, 0, 100));
             //println("===========================================");
             //System.exit(0);
 
 
-            RandomForest rf = new RandomForest();
-            rf.setOptions(weka.core.Utils.splitOptions("-I 1000 -num-slots 10")); // default I is 10 (10 trees)
+            //RandomForest rf = new RandomForest();
+            //rf.setOptions(weka.core.Utils.splitOptions("-I 1000")); // default I is 10 (10 trees), weka 3.8.4 >= -num-slots 10
             //Logistic rf = new Logistic();
-            println(Arrays.toString(rf.getOptions()) + "\n" + rf.getClass());
-            Classifier cls = rf;
+            //println(Arrays.toString(rf.getOptions()) + "\n" + rf.getClass());
+            //Classifier cls = rf;
 
             //RealAdaBoost cls = new RealAdaBoost();
             //cls.setOptions(weka.core.Utils.splitOptions("-I 10"));
@@ -403,9 +745,18 @@ public class Launcher
             //mil.setOptions(weka.core.Utils.splitOptions("-I 10"));
             //mil.setClassifier(qdd);
 
-            //MISVM mil = new MISVM();
-            //mil.setKernel(new weka.classifiers.functions.supportVector.RBFKernel());
-            //mil.setOptions(weka.core.Utils.splitOptions("-N 2 -I 500")); // no weighting of bags // //-N <num> Whether to 0=normalize/1=standardize/2=neither. (default 1=standardize)
+            //MISVM svm = new MISVM();
+            //MIRBFKernel kernel = new MIRBFKernel();
+            //kernel.setCacheSize(0); // 0 for full cache
+            //kernel.setGamma(0.01); // default 0.01
+            //RBFKernel kernel = new RBFKernel();
+            //kernel.setCacheSize(0); // 0 for full cache
+            //kernel.setGamma(0.01); // default 0.01
+            //svm.setKernel(kernel);
+            //svm.setOptions(weka.core.Utils.splitOptions("-N 2 -I 500")); // no weighting of bags // //-N <num> Whether to 0=normalize/1=standardize/2=neither. (default 1=standardize)
+            //Classifier cls = svm;
+
+
             //MITI mil = new MITI();
             // do not weight bags
             //MISMO mil = new MISMO(); mil.setOptions(weka.core.Utils.splitOptions("-N 2"));
@@ -427,7 +778,6 @@ public class Launcher
 
             //CitationKNN mil = new CitationKNN();
 
-
             //MITI mil = new MITI();
             //MIRI mil = new MIRI();
             //mil.setOptions(weka.core.Utils.splitOptions("-M 3"));
@@ -440,59 +790,71 @@ public class Launcher
             //System.exit(0);
 
 
-            //------- MIWrapper -----------
-            //MIWrapper mil = new MIWrapper();
-            //mil.setOptions(weka.core.Utils.splitOptions("-P 2 -A 0")); // P = 1 or 2, A = 1 are the best options for Logistic, A=0 original weight of instance inside bag
-            //RandomForest rf = new RandomForest();
-            //rf.setOptions(weka.core.Utils.splitOptions("-I 1000 -num-slots 10")); // default I is 10 (10 trees)
-            //mil.setClassifier(rf); // TODO you can define other parameters for an internal classifier or perform CVParameterSelection for hyperparameter selection
 
-            //Classifier cls = mil;
+//            //------- MIWrapper -----------
+//            MIWrapper mil = new MIWrapper();
+//            mil.setOptions(weka.core.Utils.splitOptions("-P 2 -A 0")); // P = 1 or 2, A = 1 are the best options for Logistic, A=0 original weight of instance inside bag
+//            RandomForest rf = new RandomForest();
+//            rf.setOptions(weka.core.Utils.splitOptions("-I 100")); // default I is 10 (10 trees) -num-slots 10
+//            mil.setClassifier(rf); // TODO you can define other parameters for an internal classifier or perform CVParameterSelection for hyperparameter selection
+//
+//            MIWrapper cls = mil;
+//
+//            //RealAdaBoost cls = new RealAdaBoost(); // TODO improves MIW-LR performance
+//            //Bagging cls = new Bagging(); // drops MIW-LR performance
+//            //AdditiveRegression cls = new AdditiveRegression(); // error on MIW-LR - designed for regression tasks; cannot handle binary class!
+//            //LogitBoost cls = new LogitBoost(); // error on MIW-LR - cannot handle numeric class!
+//            //MultiBoostAB cls = new MultiBoostAB(); //improves MIW-LR performance but not better than RealAdaBoost
+//            //AdaBoostM1 cls = new AdaBoostM1(); //improves MIW-LR performance but not better than RealAdaBoost
+//            //RotationForest cls = new RotationForest(); //error on MIW-LR - Cannot handle relational attributes!
+//            //RacedIncrementalLogitBoost cls = new RacedIncrementalLogitBoost(); //error on MIW-LR - cannot handle numeric class!
+//            //Decorate cls = new Decorate(); // error - Decorate can only handle numeric and nominal values.
+//            //ClassificationViaRegression cls = new ClassificationViaRegression(); //error -  Cannot handle numeric class!
+//            //CostSensitiveClassifier cls = new CostSensitiveClassifier(); // java.lang.Exception: On-demand cost file doesn't exist
+//
+//            //cls.setOptions(weka.core.Utils.splitOptions("-I 10"));
+//            //cls.setClassifier(mil);
+//
+//            println(Arrays.toString(cls.getOptions()) + "\n" + cls.getClass());
+//            //-P [1|2|3]
+//            //The method used in testing:
+//            //1.arithmetic average
+//            //2.geometric average
+//            //3.max probability of positive bag.
+//            //(default: 1)
+//            //
+//            //-A [0|1|2|3]
+//            //The type of weight setting for each single-instance:
+//            //0.keep the weight to be the same as the original value;
+//            //1.weight = 1.0
+//            //2.weight = 1.0/Total number of single-instance in the
+//            //corresponding bag
+//            //3. weight = Total number of single-instance / (Total
+//            //number of bags * Total number of single-instance
+//            //in the corresponding bag).
+//            //(default: 3)
+//            //
+//            //-D
+//            //If set, classifier is run in debug mode and
+//            //may output additional info to the console
+//            //
+//            //-W
+//            //Full name of base classifier.
+//            //(default: weka.classifiers.rules.ZeroR)
+//            //Options specific to classifier weka.classifiers.rules.ZeroR:
+//            //-----------------------------
 
-            //RealAdaBoost cls = new RealAdaBoost();
-            //cls.setOptions(weka.core.Utils.splitOptions("-I 10"));
-            //cls.setClassifier(mil);
-
-            //println(Arrays.toString(cls.getOptions()) + "\n" + cls.getClass());
-            //-P [1|2|3]
-            //The method used in testing:
-            //1.arithmetic average
-            //2.geometric average
-            //3.max probability of positive bag.
-            //(default: 1)
-            //
-            //-A [0|1|2|3]
-            //The type of weight setting for each single-instance:
-            //0.keep the weight to be the same as the original value;
-            //1.weight = 1.0
-            //2.weight = 1.0/Total number of single-instance in the
-            //corresponding bag
-            //3. weight = Total number of single-instance / (Total
-            //number of bags * Total number of single-instance
-            //in the corresponding bag).
-            //(default: 3)
-            //
-            //-D
-            //If set, classifier is run in debug mode and
-            //may output additional info to the console
-            //
-            //-W
-            //Full name of base classifier.
-            //(default: weka.classifiers.rules.ZeroR)
-            //Options specific to classifier weka.classifiers.rules.ZeroR:
-            //-----------------------------
 
 
 
-
-            //SimpleMI mil = new SimpleMI();
-            //mil.setOptions(weka.core.Utils.splitOptions("-M 1"));
-//            Instances newTrain = mil.transform(train);
-//            for (int i = 0; i < newTrain.numInstances(); i++)
-//            {
-//                println(newTrain.instance(i));
-//            } // for
-//            System.exit(0);
+            SimpleMI mil = new SimpleMI();
+            mil.setOptions(weka.core.Utils.splitOptions("-M 1"));
+            //Instances newTrain = mil.transform(train);
+            //for (int i = 0; i < newTrain.numInstances(); i++)
+            //{
+            //    println(newTrain.instance(i));
+            //} // for
+            //System.exit(0);
 
             //-M [1|2|3]
             //The method used in transformation:
@@ -504,7 +866,7 @@ public class Launcher
             //and minima of X, ie.,
             //s(X)=(minx1, ..., minxm, maxx1, ...,maxxm), transform
             //the exemplars into mono-instance which contains attributes s(X)
-            //RandomForest rf = new RandomForest();
+            RandomForest rf = new RandomForest();
             //OPTIONS FOR RANDOM FOREST:
             //-I <num>
             //  Number of iterations (i.e., the number of trees in the random forest).
@@ -523,14 +885,23 @@ public class Launcher
             // Break ties randomly when several attributes look equally good.
             //-batch-size
             //  The desired batch size for batch prediction  (default 100).
-            //rf.setOptions(weka.core.Utils.splitOptions("-I 1000 -num-slots 10")); // default I is 10 (10 trees)
-            //mil.setClassifier(rf);
+            rf.setOptions(weka.core.Utils.splitOptions("-I 100")); // default I is 10 (10 trees)
+            mil.setClassifier(rf);
+
+
+            SimpleMI cls = mil;
+
             //SMO svm = new SMO();
             //svm.setOptions(weka.core.Utils.splitOptions("-N 2")); // If normalization is turned off, then the default learning rate will need to be reduced (try 0.0001)
             //mil.setClassifier(svm);
 
             //up to 0.8395 AUROC using a.a. and RealAdaBoost <- SimpleMI <- RandomForest
-            //RealAdaBoost cls = new RealAdaBoost();
+            //RealAdaBoost cls = new RealAdaBoost(); // drops LR performance, //TODO improves RF performance
+            //RotationForest cls = new RotationForest(); //error on LR - Cannot handle relational attributes!
+            //Decorate cls = new Decorate(); // error on LR - Decorate can only handle numeric and nominal values.
+            //Bagging cls = new Bagging(); // RF is bagging algorithm //TODO improves LR performance
+            //AdaBoostM1 cls = new AdaBoostM1(); // drops LR performance
+            //MultiBoostAB cls = new MultiBoostAB(); // drops LR performance
             //cls.setOptions(weka.core.Utils.splitOptions("-I 10"));
             //cls.setClassifier(mil);
 
@@ -539,72 +910,103 @@ public class Launcher
             //cls.setOptions(weka.core.Utils.splitOptions("-I 10"));
             //cls.setClassifier(mil);
 
-            //println(Arrays.toString(cls.getOptions()) + "\n" + cls.getClass());
-            //System.exit(0);
+            println(Arrays.toString(cls.getOptions()) + "\n" + cls.getClass());
+//            //System.exit(0);
 
 
 
 
-            //------- MILR ----------------
-            //NO FILTERING OCCURES INSIDE "MILR" CLASS; e.g. MultiInstanceToPropositional or PropositionalToMultiInstance
-            //MILR milr = new MILR(); // TODO ridge parameter (-R) can be selected using hyperparameter selection
-            //-A [0|1|2]
-            //  Defines the type of algorithm (default 0):
-            //   0. standard MI assumption
-            //   1. collective MI assumption, arithmetic mean for posteriors
-            //   2. collective MI assumption, geometric mean for posteriors
-            //String[] options = weka.core.Utils.splitOptions("-A 2"); //put -D for debugging output
-            //milr.setOptions(options);
-            //println(Arrays.toString(milr.getOptions()) + "\n" + milr.getClass());
-            //Classifier cls = milr;
+//            //------- MILR ----------------
+//            //NO FILTERING OCCURS INSIDE "MILR" CLASS; e.g. MultiInstanceToPropositional or PropositionalToMultiInstance
+//            MILR milr = new MILR(); // TODO ridge parameter (-R) can be selected using hyperparameter selection
+//            //-A [0|1|2]
+//            //  Defines the type of algorithm (default 0):
+//            //   0. standard MI assumption
+//            //   1. collective MI assumption, arithmetic mean for posteriors
+//            //   2. collective MI assumption, geometric mean for posteriors
+//            milr.setOptions(weka.core.Utils.splitOptions("-A 2")); //put -D for debugging output
+//            //println(Arrays.toString(milr.getOptions()) + "\n" + milr.getClass());
+//            MILR cls = milr;
+//
+//
+//            //RealAdaBoost cls = new RealAdaBoost(); // drops performance
+//            //-P <num>
+//            //  Percentage of weight mass to base training on.
+//            //  (default 100, reduce to around 90 speed up)
+//            //
+//            // -Q
+//            //  Use resampling for boosting.
+//            //
+//            // -H <num>
+//            //  Shrinkage parameter.
+//            //  (default 1)
+//            //
+//            // -S <num>
+//            //  Random number seed.
+//            //  (default 1)
+//            //
+//            // -I <num>
+//            //  Number of iterations.
+//            //  (default 10)
+//            //cls.setOptions(weka.core.Utils.splitOptions("-I 10")); // -Q Use resampling for boosting.
+//            //cls.setClassifier(milr);
+//
+//            //Vote cls = new Vote();
+//            //cls.setOptions(weka.core.Utils.splitOptions("-R AVG -B \"weka.classifiers.mi.MILR -A 2\"")); // does not improve MILR performance
+//
+//            //StackingC cls = new StackingC();
+//            //cls.setOptions(weka.core.Utils.splitOptions("-M weka.classifiers.meta.Bagging -B \"weka.classifiers.mi.MILR -A 2\""));
+//
+//            //RealAdaBoost cls = new RealAdaBoost();
+//            //AdditiveRegression cls = new AdditiveRegression(); //or LogitBoost
+//            //MultiBoostAB cls = new MultiBoostAB();
+//            //Bagging cls = new Bagging(); //TODO IMPROVES MILR PERFORMANCE with 10 iterations
+//            //cls.setOptions(weka.core.Utils.splitOptions("-I 10 -num-slots 4"));
+//            //cls.setClassifier(milr);
+//            println(Arrays.toString(cls.getOptions()) + "\n" + cls.getClass());
+//            //-----------------------------
 
-            //RealAdaBoost cls = new RealAdaBoost();
-            //cls.setOptions(weka.core.Utils.splitOptions("-I 10 -Q"));
-            ///cls.setClassifier(milr);
-
-            //println(Arrays.toString(mil.getOptions()) + "\n" + mil.getClass());
-            //-----------------------------
 
 
-
-            //--------- MIBoost -----------
-            //MultiInstanceToPropositional to propositional filter is present inside "MIBoost" class, weight bags, but all bags have the same weights
-            //MIBoost mil = new MIBoost(); //
-            //-B <num>
-            //        The number of bins in discretization
-            //    (default 0, no discretization)
-            //
-            //-R <num>
-            //        Maximum number of boost iterations.
-            //(default 10)
-            //
-            //-W <class name> (can also be done by setClassifier method)
-            //Full name of classifier to boost.
-            //eg: weka.classifiers.bayes.NaiveBayes
-            //mil.setOptions(weka.core.Utils.splitOptions("-R 1000"));
-            //OPTIONS FOR RANDOM FOREST:
-            //-I <num>
-            //  Number of iterations (i.e., the number of trees in the random forest).
-            //  (current value 10) //tested 100
-            //
-            // -K <number of attributes>
-            //  Number of attributes to randomly investigate. (default 0)
-            //  (<1 = int(log_2(#predictors)+1)). //not possible, 0 is only possible value
-            //
-            // -S <num>
-            //  Seed for random number generator.
-            //  (default 1)
-            //-N <num>
-            // Number of folds for backfitting (default 0, no backfitting).
-            //-B
-            // Break ties randomly when several attributes look equally good.
-            //-batch-size
-            //  The desired batch size for batch prediction  (default 100).
-            //RandomForest rf = new RandomForest();
-            //rf.setOptions(weka.core.Utils.splitOptions("-I 100")); // default I is 10 (10 trees)
-            //mil.setClassifier(new Logistic()); //new BayesianLogisticRegression()); //new Logistic()); //new MultilayerPerceptron()); //new NaiveBayes()); //not good NaiveBayes; //(new RandomForest());
-            //println(Arrays.toString(mil.getOptions()) + "\n" + mil.getClass());
-            //-----------------------------
+//            //--------- MIBoost -----------
+//            //MultiInstanceToPropositional to propositional filter is present inside "MIBoost" class, weight bags, but all bags have the same weights
+//            MIBoost mil = new MIBoost();
+//            //-B <num>
+//            //        The number of bins in discretization
+//            //    (default 0, no discretization)
+//            //
+//            //-R <num>
+//            //        Maximum number of boost iterations.
+//            //(default 10)
+//            //
+//            //-W <class name> (can also be done by setClassifier method)
+//            //Full name of classifier to boost.
+//            //eg: weka.classifiers.bayes.NaiveBayes
+//            mil.setOptions(weka.core.Utils.splitOptions("-R 10"));
+//            //OPTIONS FOR RANDOM FOREST:
+//            //-I <num>
+//            //  Number of iterations (i.e., the number of trees in the random forest).
+//            //  (current value 10) //tested 100
+//            //
+//            // -K <number of attributes>
+//            //  Number of attributes to randomly investigate. (default 0)
+//            //  (<1 = int(log_2(#predictors)+1)). //not possible, 0 is only possible value
+//            //
+//            // -S <num>
+//            //  Seed for random number generator.
+//            //  (default 1)
+//            //-N <num>
+//            // Number of folds for backfitting (default 0, no backfitting).
+//            //-B
+//            // Break ties randomly when several attributes look equally good.
+//            //-batch-size
+//            //  The desired batch size for batch prediction  (default 100).
+//            RandomForest rf = new RandomForest();
+//            rf.setOptions(weka.core.Utils.splitOptions("-I 100")); // default I is 10 (10 trees)
+//            mil.setClassifier(rf); //new BayesianLogisticRegression()); //new Logistic()); //new MultilayerPerceptron()); //new NaiveBayes()); //not good NaiveBayes; //(new RandomForest());
+//            MIBoost cls = mil;
+//            println(Arrays.toString(cls.getOptions()) + "\n" + cls.getClass());
+//            //-----------------------------
 
 
 
@@ -617,10 +1019,10 @@ public class Launcher
             //for(int i = 1; i <= 10; i ++)
             //    Utils.simpleTrainTest(cls, train, test, i, false);
 
-            Utils.simpleTrainTest(cls, train, test, 1, true);
+            //Utils.simpleTrainTest(cls, train, test, 1, true);
 
 
-            //Utils.simpleTrainTestOverMultipleRuns(mil, train, 10, test, true);
+            Utils.simpleTrainTestOverMultipleRuns(cls, train, 10, test, true);
 
 
         } catch (Exception e) {
