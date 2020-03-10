@@ -544,20 +544,10 @@ public class MTSE implements Serializable, Comparable<MTSE>
     } // compareTo
 
 
-    //helper method to create MTSE from file
-    //it will parse the file in the following format:
-    //    var1 var2
-    //ts1
-    //ts2
-    public static MTSE fromFile(Dataset dataset, String localFilePath, String lineComponentDelimiter, float floatMissingValuePlaceHolder)
+    public static MTSE fromFile(Dataset dataset, String fileName, String fileContents, String lineComponentDelimiter, float floatMissingValuePlaceHolder)
     {
-        //all files are actually record ids
-        String fileName = Utils.fileNameFromPath(localFilePath);
         int recordID = Integer.parseInt(FilenameUtils.removeExtension(fileName));
 
-
-        //obtain file contents
-        String fileContents = Utils.fileContentsFromLocalFilePath(localFilePath);
         //split the contents to lines
         String[] lines = StringUtils.split(fileContents, "\r\n|\r|\n");
 
@@ -609,13 +599,29 @@ public class MTSE implements Serializable, Comparable<MTSE>
                     valuesInTsOrder.add(Float.valueOf(thisLineComponents[varIndex]));
                 else
                     valuesInTsOrder.add(floatMissingValuePlaceHolder);
-                                   // .add(-1.0f);
-                                   //.add(Float.POSITIVE_INFINITY);
+                // .add(-1.0f);
+                //.add(Float.POSITIVE_INFINITY);
             } // for each line component
 
         } // for each line
 
         return new MTSE(dataset, recordID, timeStamps, varNames, new ArrayList<>(varVarValuesMap.values()));
+    } // fromFile
+
+    //helper method to create MTSE from file
+    //it will parse the file in the following format:
+    //    var1 var2
+    //ts1
+    //ts2
+    public static MTSE fromFile(Dataset dataset, String localFilePath, String lineComponentDelimiter, float floatMissingValuePlaceHolder)
+    {
+        //all files are actually record ids
+        String fileName = Utils.fileNameFromPath(localFilePath);
+
+        //obtain file contents
+        String fileContents = Utils.fileContentsFromLocalFilePath(localFilePath);
+
+        return fromFile(dataset, fileName, fileContents, lineComponentDelimiter, floatMissingValuePlaceHolder);
     } // fromFile
 
 

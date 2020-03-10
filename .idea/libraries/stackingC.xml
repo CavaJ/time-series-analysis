@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="stackingC">
-    <CLASSES>
-      <root url="jar://$PROJECT_DIR$/ensemble/stackingC.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>

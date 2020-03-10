@@ -1,7 +1,6 @@
 package com.rb.tsa;
 
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Classifier;
@@ -30,6 +29,7 @@ import java.text.DecimalFormat;
 import java.util.List;
 import java.util.Queue;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 //class containing utility methods
 public class Utils
@@ -353,7 +353,8 @@ public class Utils
 
     //helper method to convert mtses to weka instances
     public static Instances mtsesToMIData(Dataset dataset, List<MTSE> mtses, Outcomes outcomes, String bagName,
-                                          String[] classLabels, boolean includeTsMinutes, String subsetOfTheDataset) throws Exception
+                                          String[] classLabels, boolean includeTsMinutes,
+                                          String subsetOfTheDataset) throws Exception
     {
         if(mtses.isEmpty()) throw new RuntimeException("At least one mtse should be provided");
         List<String> vars = mtses.get(0).getVars();
@@ -539,9 +540,31 @@ public class Utils
     } // writeGeneralDescriptorsRecords
 
 
-    //transform
+
+    //helper method to load instances from multi-instance arff file
+    public static Instances loadInstancesFromMIArffFile(String miArffFilePath, boolean isClassIndexLast) throws Exception
+    {
+        //sample mi arff file path => PHYSIONET_DATA_FOLDER + File.separator + "multi_instance_with_ts_arff" + File.separator + "physionet_dataset_.arff"
+        ConverterUtils.DataSource source
+                = new ConverterUtils.DataSource(miArffFilePath);
+        //load all data
+        Instances data = source.getDataSet();
+        // setting class attribute if the data format does not provide this information
+        // For example, the XRFF format saves the class attribute information as well
+        if (data.classIndex() == -1)
+            if (isClassIndexLast) data.setClassIndex(data.numAttributes() - 1);
+            else    data.setClassIndex(0); // else it is first
+
+        return data;
+    } // loadInstancesFromMIArffFile
 
 
+
+    //Sample execution statement:
+    //Utils.writeMTSEsToMultiInstanceArffFile(Dataset.PhysioNet, mtses, outcomes,
+    //    "patient_record_id", new String[]{"1", "0"}, true, DATA_FOLDER,
+    //    "multi_instance_with_ts_arff", ""); // "", "set-a", "set-b", "set-c"
+    //------------------------------------------------------------------------
     //helper method to write mtses to multi-instance format:
     //@relation physionet
     // @attribute patient_record_id {132539,132540,132541,132543,132545,...,163037}
@@ -560,7 +583,7 @@ public class Utils
     // 132539,"0,59.26,79.05,119.4,116.75,394.61,506.54,2.92,27.42,2.91,156.52,1.51,0.55,11.4,141.5,23.12,30.68,87.52,4.14,2.92,2.03,139.07,40.47,150.42,190.81,19.72,96.64,37.04,7.15,1.2,119.57,12.67,83.6,7.49\n...",0
     // ...
     public static void writeMTSEsToMultiInstanceArffFile(Dataset dataset, List<MTSE> mtses, Outcomes outcomes, String bagName,
-                                                  String[] classLabels, boolean includeTsMinutes,
+                                                         String[] classLabels, boolean includeTsMinutes,
                                                          String destinationDirPath, String newDirNameToPutFile, String fileNameAppendix)
     {
         if(mtses.isEmpty()) throw new RuntimeException("At lease one mtse should be provided");
@@ -652,6 +675,7 @@ public class Utils
 
 
     //numeric attribute range in the form of "first-last"
+    //sample call: Utils.csv2Arff(localFilePath, "1-" + (consideredVars.size() + 1)); // +1 for tsMinutes
     public static void csv2Arff(String localFilePathString, String numericAttributeRange)
     {
 
@@ -840,7 +864,7 @@ public class Utils
 //    } // median
 
 
-    //TODO use the mean obtained from training dataset for test data set during imputation of test dataset
+
     //helper method to compute the mean of variables in all given time series using masking vector
     public static Map<String, Float> meansOfVariablesUsingMaskingVector(List<MTSE> mtses)
     {
@@ -1083,7 +1107,8 @@ public class Utils
         //  For example in a binary classification problem where we want to predict if a passenger on Titanic survived or not.
         //  we have two classes here Passenger either survived or did not survive.
         //  We ensure that each fold has a percentage of passengers that survived, and a percentage of passengers that did not survive.
-        if (randData.classAttribute().isNominal()) {//TODO check class size in each fold; num instances of negative and positive class versus non-stratified case
+        if (randData.classAttribute().isNominal())
+        {
             System.out.println("Class value is nominal, stratifying folds");
             randData.stratify(folds);
         }
@@ -1498,7 +1523,7 @@ public class Utils
 
 
     //helper method to reweight instances inside each bag by ts through keeping multiInstance format
-    public static Instances reweightInstancesOfEachBagByTs(Instances data) throws Exception
+    public static Instances reweightInstancesOfEachBagByTs(Instances data, boolean keepTsAsAVariable) throws Exception
     {
         //take copy of the instance before manipulation
         data = new Instances(data);
@@ -1551,7 +1576,8 @@ public class Utils
 
 
             //remove ts minutes
-            bagOfThisBagInstance.deleteAttributeAt(0);
+            if(!keepTsAsAVariable)
+                bagOfThisBagInstance.deleteAttributeAt(0);
             //System.out.println(bagOfThisBagInstance.numAttributes());
             //System.out.println("\n====== After deletion =====\n");
             //printWekaInstances(bagOfThisBagInstance);
@@ -1561,7 +1587,8 @@ public class Utils
 
         //remove attribute name from schema; (tsMinutes)
         //bag relational is at index 1, and index 0 of that relation is tsMinutes
-        data.attribute(1).relation().deleteAttributeAt(0);
+        if(!keepTsAsAVariable)
+            data.attribute(1).relation().deleteAttributeAt(0);
 
         //System.out.println(new Instances(data, 0, 100));
 
@@ -1663,6 +1690,42 @@ public class Utils
 
         return newData;
     } // transformMiDataToProp
+
+
+
+    //helper method to impute the file content and write it as a new file
+    public static void imputeAndWrite(String DATA_FOLDER, List<MTSE> mtses, Imputations.ImputeMethod imputeMethod, int setASize, int setBSize, VarRanges varRanges,
+                                      float currentMissingValuePlaceHolder)
+    {
+        long start = System.currentTimeMillis();
+
+        Imputations imputations = Imputations.getInstance();
+        List<MTSE> imtses = imputations.impute(mtses, imputeMethod, new int[]{0, setASize}, varRanges, currentMissingValuePlaceHolder);
+
+        long end = System.currentTimeMillis();
+        System.out.println("It took " + TimeUnit.MILLISECONDS.toSeconds(end-start) + " seconds for imputation");
+
+
+        for(int index = 0; index < imtses.size(); index ++)
+        {
+            MTSE imtse = imtses.get(index);
+            //println(imtse.toVerticalString());
+            //println(imtse.toVerticalMaskingVectorString());
+            //println(imtse.toCSVString(true));
+            //break;
+
+            if(index < setASize)
+                imtse.writeToFile(DATA_FOLDER, imputeMethod.toActionString() + "_set-a", "csv", true);
+            else if(index < setASize + setBSize)
+                imtse.writeToFile(DATA_FOLDER, imputeMethod.toActionString() + "_set-b", "csv", true);
+            else
+                imtse.writeToFile(DATA_FOLDER, imputeMethod.toActionString() + "_set-c", "csv", true);
+        } // for
+    } // imputeAndWrite
+
+
+
+
 
 
 
@@ -2155,6 +2218,7 @@ public class Utils
         //of bags * Total number of prop. instance in the
         //corresponding bag).
         //(default:0)
+        //NONE OF OPTIONS KEEP INNER BAG INSTANCE WEIGHTING => MODIFY WEKA SOURCE CODE
         miToProp.setOptions(weka.core.Utils.splitOptions("-A 1")); // keep the original weighting
         miToProp.setInputFormat(miData);
         Instances propData = Filter.useFilter(miData, miToProp);
@@ -2165,6 +2229,7 @@ public class Utils
 
     private static Instances toMi(Instances propData) throws Exception
     {
+        //THE INNER BAG INSTANCE WEIGHTS SHOULD BE STILL BE KEPT HERE
         PropositionalToMultiInstance propToMi = new PropositionalToMultiInstance();
         //propToMi.setDoNotWeightBags(true);
         propToMi.setOptions(weka.core.Utils.splitOptions("-no-weights")); // weka 3.7.0
@@ -2191,4 +2256,38 @@ public class Utils
 
         return train;
     } // smote
+
+
+
+    //TODO implement transformation method to transform attributes to
+    // 'Maximum', 'Minimum', 'Mean', 'Median', 'Mode', 'Standard_deviation', 'Variance', 'Range', 'Geometric_center', 'Kurtosis', 'Skewness', 'Averaged_power', 'Energy_spectral_density'
+    // feature space
+    // use weka.attributeSelection package, especially classes (e.g. PrincipalComponents) implementing AttributeTransformer interface
+
+
+
+    //NOTES:
+    //RealAdaBoost cls = new RealAdaBoost(); // improves MIW-LR performance better than all other meta learners
+    //Bagging cls = new Bagging(); // drops MIW-LR performance
+    //AdditiveRegression cls = new AdditiveRegression(); // error on MIW-LR - designed for regression tasks; cannot handle binary class!
+    //LogitBoost cls = new LogitBoost(); // error on MIW-LR - cannot handle numeric class!
+    //MultiBoostAB cls = new MultiBoostAB(); //improves MIW-LR performance but not better than RealAdaBoost
+    //AdaBoostM1 cls = new AdaBoostM1(); //improves MIW-LR performance but not better than RealAdaBoost
+    //RotationForest cls = new RotationForest(); //error on MIW-LR - Cannot handle relational attributes!
+    //RacedIncrementalLogitBoost cls = new RacedIncrementalLogitBoost(); //error on MIW-LR - cannot handle numeric class!
+    //Decorate cls = new Decorate(); // error - Decorate can only handle numeric and nominal values.
+    //ClassificationViaRegression cls = new ClassificationViaRegression(); //error -  Cannot handle numeric class!
+    //CostSensitiveClassifier cls = new CostSensitiveClassifier(); // java.lang.Exception: On-demand cost file doesn't exist
+    //---------------------------------------------
+    //SimpleMI up to 0.8395 AUROC using a.a. and RealAdaBoost <- SimpleMI <- RandomForest
+    //RealAdaBoost cls = new RealAdaBoost(); // drops SMI-LR performance, //improves SMI-RF performance
+    //RotationForest cls = new RotationForest(); //error on SMI-LR - Cannot handle relational attributes!
+    //Decorate cls = new Decorate(); // error on SMI-LR - Decorate can only handle numeric and nominal values.
+    //Bagging cls = new Bagging(); // RF is bagging algorithm //improves SMI-LR performance
+    //AdaBoostM1 cls = new AdaBoostM1(); // drops SMI-LR performance
+    //MultiBoostAB cls = new MultiBoostAB(); // drops SMI-LR performance
+    //----------------------------------------------
+    //RealAdaBoost cls = new RealAdaBoost(); // drops MILR performance
+    //Bagging cls = new Bagging(); //IMPROVES MILR PERFORMANCE with 10 iterations
+
 } // class Utils

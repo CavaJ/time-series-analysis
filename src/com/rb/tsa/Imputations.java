@@ -15,8 +15,34 @@ public class Imputations
         VALID_LOW_IMPUTATION,
         NORMAL_VALUE_IMPUTATION,
         MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION,
-        LIPTON_FORWARD_FILLING_IMPUTATION
+        LIPTON_FORWARD_FILLING_IMPUTATION;
+
+
+        public String toString()
+        {
+            switch (this)
+            {
+                case ZERO_IMPUTATION:
+                    return "zero_imputation";
+                case VALID_LOW_IMPUTATION:
+                    return "valid_low_imputation";
+                case NORMAL_VALUE_IMPUTATION:
+                    return "normal_value_imputation";
+                case MEAN_VALUE_WITH_MASKING_VECTOR_IMPUTATION:
+                    return "mean_imputation";
+                case LIPTON_FORWARD_FILLING_IMPUTATION:
+                    return "forward_imputation";
+                default:
+                    return "unknown_imputation";
+            } // switch
+        } // toString
+
+        public String toActionString()
+        {
+            return toString().replace("imputation", "imputed");
+        } // toString
     } // enum
+
 
     private Imputations() {}
     public static Imputations getInstance()
@@ -24,6 +50,8 @@ public class Imputations
         if(singleton == null) singleton = new Imputations();
         return singleton;
     } // getInstance
+
+
 
     //helper method to impute the list of multivariate time series
     public List<MTSE> impute(List<MTSE> mtseList, ImputeMethod imputeMethod,  int[] trainingSetStartIndexIncEndIndexEx,
@@ -150,6 +178,8 @@ public class Imputations
                 } // for each mtse
                 break;
             case LIPTON_FORWARD_FILLING_IMPUTATION:
+                //use the median obtained from training dataset for test data set during imputation of test dataset
+                //compute on set-A and apply it on set-B and set-C
                 Map<String, Float> varMedianMap
                         = Utils.mediansOfVariables(dcList.subList(trainingSetStartIndexIncEndIndexEx[0], trainingSetStartIndexIncEndIndexEx[1]));
                 for(MTSE mtse : dcList)
