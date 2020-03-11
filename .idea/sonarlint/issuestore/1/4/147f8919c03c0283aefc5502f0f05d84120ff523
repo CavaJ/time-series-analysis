@@ -1,93 +1,0 @@
-
-Osquid:S1135­"2Complete the task associated to this TODO comment.(ú˜©ûÿÿÿÿ
-hsquid:CommentedOutCodeLineĞ"<This block of commented-out lines of code should be removed.(°Ê±®øÿÿÿÿ
-osquid:S3776½"RRefactor this method to reduce its Cognitive Complexity from 46 to the 15 allowed.(ıû•øÿÿÿÿ
-csquid:CommentedOutCodeLine¡"<This block of commented-out lines of code should be removed.(Ğ£÷‡
-csquid:CommentedOutCodeLine§"<This block of commented-out lines of code should be removed.(ä °À
-osquid:S3776ä"RRefactor this method to reduce its Cognitive Complexity from 29 to the 15 allowed.(ƒÂ­ªûÿÿÿÿ
-Osquid:S1135·"2Complete the task associated to this TODO comment.(ú˜©ûÿÿÿÿ
-gsquid:CommentedOutCodeLine~"<This block of commented-out lines of code should be removed.(ˆµ›ôüÿÿÿÿ
-hsquid:CommentedOutCodeLineŠ"<This block of commented-out lines of code should be removed.(’¯§‹ıÿÿÿÿ
-Osquid:S1135…"2Complete the task associated to this TODO comment.(óøÿÿÿÿ
-gsquid:CommentedOutCodeLine"<This block of commented-out lines of code should be removed.(†Œøœúÿÿÿÿ
-hsquid:CommentedOutCodeLine¯"<This block of commented-out lines of code should be removed.(ŸŞˆøÿÿÿÿ
-osquid:S3776ó"RRefactor this method to reduce its Cognitive Complexity from 22 to the 15 allowed.(âÔãÅıÿÿÿÿ
-Xsquid:S1075"ARefactor your code to get this URI from a customizable parameter.(Ü¹šß
-gsquid:S1192\"PDefine a constant instead of duplicating this literal "outlier_removal" 3 times.(Äªø›
-Lsquid:EmptyStatementUsageCheckğ"Remove this empty statement.(ä”ıøÿÿÿÿ
-bsquid:CommentedOutCodeLineE"<This block of commented-out lines of code should be removed.(ä²çš
-Qsquid:S2864Å"4Iterate over the "entrySet" instead of the "keySet".(ì±ŞÊûÿÿÿÿ
-hsquid:CommentedOutCodeLineù"<This block of commented-out lines of code should be removed.(Ê±ô¨ûÿÿÿÿ
-Osquid:S1135„"2Complete the task associated to this TODO comment.(È¸§òÿÿÿÿÿ
-Gsquid:S1481ù"/Remove this unused "lineNumber" local variable.(Ú«Î§
-xsquid:S00115ğ"ZRename this constant name to match the regular expression '^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$'.(ä”ıøÿÿÿÿ
-hsquid:CommentedOutCodeLine–"<This block of commented-out lines of code should be removed.(‚·¼Ïıÿÿÿÿ
-hsquid:CommentedOutCodeLineÛ"<This block of commented-out lines of code should be removed.(œäèƒÿÿÿÿÿ
-^squid:S1192L"GDefine a constant instead of duplicating this literal "prepro" 9 times.(ØèÎé
-™squid:S1319½"|The type of the "consideredVars" object should be an interface such as "SortedSet" rather than the implementation "TreeSet".(ıû•øÿÿÿÿ
-Qsquid:S2864×"4Iterate over the "entrySet" instead of the "keySet".(â°Ğáøÿÿÿÿ
-jsquid:S3776‘"RRefactor this method to reduce its Cognitive Complexity from 16 to the 15 allowed.(Õõ‡ş
-usquid:S2293}"YReplace the type specification in this constructor call with the diamond operator ("<>").(¡Ñ«÷ûÿÿÿÿ
-csquid:CommentedOutCodeLine€"<This block of commented-out lines of code should be removed.(ÙÎ…
-bsquid:S1192Ÿ"JDefine a constant instead of duplicating this literal "tsMinutes" 6 times.(Š¦„¬
-osquid:S3776Â"RRefactor this method to reduce its Cognitive Complexity from 25 to the 15 allowed.(ÿ’ÎŸüÿÿÿÿ
-csquid:CommentedOutCodeLine·"<This block of commented-out lines of code should be removed.(Ğáª
-’squid:S1319à"uThe type of the "varsToDiscard" object should be an interface such as "Set" rather than the implementation "HashSet".(œâ ÿÿÿÿÿ
-gsquid:CommentedOutCodeLine1"<This block of commented-out lines of code should be removed.(÷ùšŸşÿÿÿÿ
-™squid:S1319ä"|The type of the "consideredVars" object should be an interface such as "SortedSet" rather than the implementation "TreeSet".(ƒÂ­ªûÿÿÿÿ
-Qsquid:S2864ò"4Iterate over the "entrySet" instead of the "keySet".(ç¢“¨ùÿÿÿÿ
-hsquid:CommentedOutCodeLineû"<This block of commented-out lines of code should be removed.(£ÔÔ¥øÿÿÿÿ
-bsquid:CommentedOutCodeLine‚"<This block of commented-out lines of code should be removed.(’öÆ(
-hsquid:CommentedOutCodeLine "<This block of commented-out lines of code should be removed.(ŞÔ˜äøÿÿÿÿ
-qsquid:S2293ô"YReplace the type specification in this constructor call with the diamond operator ("<>").(×ÅİÍ
-hsquid:CommentedOutCodeLineß"<This block of commented-out lines of code should be removed.(ã €Çÿÿÿÿÿ
-csquid:CommentedOutCodeLineœ"<This block of commented-out lines of code should be removed.(­ƒäş
-gsquid:CommentedOutCodeLine7"<This block of commented-out lines of code should be removed.(éÊ‚ñÿÿÿÿÿ
-csquid:CommentedOutCodeLine›"<This block of commented-out lines of code should be removed.(¹Ø³ƒ
-™squid:S1319à"|The type of the "consideredVars" object should be an interface such as "SortedSet" rather than the implementation "TreeSet".(œâ ÿÿÿÿÿ
-hsquid:CommentedOutCodeLine£"<This block of commented-out lines of code should be removed.(†÷å½ıÿÿÿÿ
-bsquid:CommentedOutCodeLinet"<This block of commented-out lines of code should be removed.(ÿ™›–
-hsquid:CommentedOutCodeLineè"<This block of commented-out lines of code should be removed.(³ñ”ƒıÿÿÿÿ
-csquid:CommentedOutCodeLine•"<This block of commented-out lines of code should be removed.(ÚÑ›¤
-hsquid:CommentedOutCodeLineë"<This block of commented-out lines of code should be removed.(ğö¢»şÿÿÿÿ
-hsquid:UselessImportCheck"DRemove this unused import 'javafx.collections.ObservableFloatArray'.(ÉÚ¡Ş
-’squid:S1319ä"uThe type of the "varsToDiscard" object should be an interface such as "Set" rather than the implementation "HashSet".(ƒÂ­ªûÿÿÿÿ
-Qsquid:S2864‹"4Iterate over the "entrySet" instead of the "keySet".(ÀÙ”ÿÿÿÿÿ
-Osquid:S1135†"2Complete the task associated to this TODO comment.(Æ–»Íüÿÿÿÿ
-usquid:S2293-"YReplace the type specification in this constructor call with the diamond operator ("<>").(ËğÈÚøÿÿÿÿ
-Rsquid:S1481}"6Remove this unused "newConsideredVars" local variable.(¡Ñ«÷ûÿÿÿÿ
-Osquid:S1068"8Remove this unused "VAR_RANGES_FILE_PATH" private field.(Ü¹šß
-bsquid:CommentedOutCodeLineX"<This block of commented-out lines of code should be removed.(µà€ä
-csquid:CommentedOutCodeLine¼"<This block of commented-out lines of code should be removed.(‡™á²
-csquid:CommentedOutCodeLineî"<This block of commented-out lines of code should be removed.(­ÁÓ½
-csquid:CommentedOutCodeLineô"<This block of commented-out lines of code should be removed.(óÀáé
-osquid:S3776à"RRefactor this method to reduce its Cognitive Complexity from 24 to the 15 allowed.(œâ ÿÿÿÿÿ
-Osquid:S1135±"2Complete the task associated to this TODO comment.(ú˜©ûÿÿÿÿ
-;squid:S1148ã"#Use a logger to log this exception.(Ç’Çê
-Osquid:S1135»"2Complete the task associated to this TODO comment.(ú˜©ûÿÿÿÿ
-hsquid:CommentedOutCodeLine’"<This block of commented-out lines of code should be removed.(ùşğ¼ıÿÿÿÿ
-^squid:S1192,"GDefine a constant instead of duplicating this literal "Weight" 4 times.(×ÄÖ
-U
-squid:S106Ñ"9Replace this use of System.out or System.err by a logger.(“¨Ò¸üÿÿÿÿ
-bsquid:CommentedOutCodeLine4"<This block of commented-out lines of code should be removed.(£ªè­
-hsquid:CommentedOutCodeLineö"<This block of commented-out lines of code should be removed.(ğö¢»şÿÿÿÿ
-xsquid:S00115ğ"ZRename this constant name to match the regular expression '^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$'.(ä”ıøÿÿÿÿ
-P
-squid:S106’"9Replace this use of System.out or System.err by a logger.(Ú“Üİ
-bsquid:CommentedOutCodeLine†"<This block of commented-out lines of code should be removed.(’öÆ(
-qsquid:S2293ü"YReplace the type specification in this constructor call with the diamond operator ("<>").(×ÅİÍ
-;squid:S1148Ô"#Use a logger to log this exception.(Ç’Çê
-_squid:S1192l"HDefine a constant instead of duplicating this literal "varJoin" 4 times.(¼Š“Ñ
-osquid:S3776¥"RRefactor this method to reduce its Cognitive Complexity from 22 to the 15 allowed.(”ê±ûÿÿÿÿ
-xsquid:S00115ğ"ZRename this constant name to match the regular expression '^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$'.(ä”ıøÿÿÿÿ
-Qsquid:S1135‡"2Complete the task associated to this TODO comment.(¡­ÖÁ8Çöò†ù-
-™squid:S1319Â"|The type of the "consideredVars" object should be an interface such as "SortedSet" rather than the implementation "TreeSet".(ÿ’ÎŸüÿÿÿÿ
-gsquid:CommentedOutCodeLineg"<This block of commented-out lines of code should be removed.(œ”Éœúÿÿÿÿ
-asquid:S1854}"ERemove this useless assignment to local variable "newConsideredVars".(¡Ñ«÷ûÿÿÿÿ
-squid:S1319½"sThe return type of this method should be an interface such as "SortedSet" rather than the implementation "TreeSet".(ıû•øÿÿÿÿ
-Jsquid:S1135"2Complete the task associated to this TODO comment.(ºÛø
-csquid:CommentedOutCodeLineÃ"<This block of commented-out lines of code should be removed.(ë™÷Œ
-U
-squid:S106­"9Replace this use of System.out or System.err by a logger.(Ÿ˜¿Êûÿÿÿÿ
-bsquid:CommentedOutCodeLineH"<This block of commented-out lines of code should be removed.(ü”ÖÍ
-;squid:S1148‡"#Use a logger to log this exception.(Ç’Çê
