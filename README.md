@@ -1,4 +1,6 @@
-# time-series-analysis
+Code base for the paper: **Babayev, R., & Wiese, L. (2021). Benchmarking Multi-instance Learning for Multivariate Time Series Analysis. In Heterogeneous Data Management, Polystores, and Analytics for Healthcare (pp. 103-120). Springer, Cham.**
+
+Link for the paper: [Springer link](https://link.springer.com/chapter/10.1007/978-3-030-93663-1_9)
 
 The main class is ```Launcher.java``` file. For reproducing the results, you should add this to your run configuration. 
 The results are generated in [Physionet dataset](https://physionet.org/content/challenge-2012/1.0.0/). To run the experiments 
